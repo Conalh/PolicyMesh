@@ -76,6 +76,39 @@ test('CLI rejects file repository path instead of reporting a clean audit', asyn
   );
 });
 
+test('CLI rejects --repo without a value', async () => {
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo'],
+      { cwd: packageRoot }
+    ),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.match(error.stderr, /Missing value for --repo/);
+      assert.match(error.stderr, /Usage: policymesh audit/);
+      assert.equal(error.stdout, '');
+      return true;
+    }
+  );
+});
+
+test('CLI rejects --repo before another option as a missing value', async () => {
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', '--format', 'json'],
+      { cwd: packageRoot }
+    ),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.match(error.stderr, /Missing value for --repo/);
+      assert.equal(error.stdout, '');
+      return true;
+    }
+  );
+});
+
 test('CLI conflicted fixture returns high rating with expected kinds', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
