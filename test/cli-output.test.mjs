@@ -38,6 +38,44 @@ test('CLI repository root self-audit returns none rating', async () => {
   assert.equal(report.findingCount, 0);
 });
 
+test('CLI rejects missing repository path instead of reporting a clean audit', async () => {
+  const missingRepo = join(testDir, 'fixtures', 'does-not-exist');
+
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', missingRepo, '--format', 'json'],
+      { cwd: packageRoot }
+    ),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.match(error.stderr, /Repository path does not exist/);
+      assert.match(error.stderr, /does-not-exist/);
+      assert.equal(error.stdout, '');
+      return true;
+    }
+  );
+});
+
+test('CLI rejects file repository path instead of reporting a clean audit', async () => {
+  const fileRepo = join(packageRoot, 'package.json');
+
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', fileRepo, '--format', 'json'],
+      { cwd: packageRoot }
+    ),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.match(error.stderr, /Repository path is not a directory/);
+      assert.match(error.stderr, /package\.json/);
+      assert.equal(error.stdout, '');
+      return true;
+    }
+  );
+});
+
 test('CLI conflicted fixture returns high rating with expected kinds', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
