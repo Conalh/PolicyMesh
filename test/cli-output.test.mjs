@@ -215,6 +215,28 @@ test('CLI reports servers missing from configured but empty MCP surfaces', async
   assert.match(report.findings[0].message, /missing from cursor_mcp/);
 });
 
+test('CLI reports Codex network access alongside unreadable agent surfaces', async () => {
+  const repo = join(testDir, 'fixtures', 'codex-network-unreadable-surface');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'high');
+  assert.equal(report.findingCount, 2);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'config_parse_error');
+  assert.equal(report.findings[0].file, '.cursor/mcp.json');
+  assert.equal(report.findings[1].kind, 'codex_network_without_review');
+  assert.equal(report.findings[1].severity, 'medium');
+  assert.equal(report.findings[1].file, '.codex/config.toml');
+  assert.equal(report.findings[1].line, 1);
+  assert.deepEqual(report.findings[1].surfaces, ['codex', 'cursor_mcp']);
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 

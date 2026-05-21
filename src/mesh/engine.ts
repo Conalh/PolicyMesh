@@ -218,8 +218,8 @@ function detectCodexNetworkWithoutReview(policies: RepoPolicies): Finding[] {
     return findingsEmpty();
   }
 
-  const otherSurfaces = countOtherAgentSurfaces(policies);
-  if (otherSurfaces === 0) {
+  const otherSurfaces = listOtherAgentSurfaces(policies);
+  if (otherSurfaces.length === 0) {
     return findingsEmpty();
   }
 
@@ -231,7 +231,7 @@ function detectCodexNetworkWithoutReview(policies: RepoPolicies): Finding[] {
     subject: 'network_access',
     message: 'Codex network access is enabled while other agent surfaces are also configured in this repository.',
     recommendation: 'Review whether network access is required and ensure secrets cannot be exfiltrated through agent tooling.',
-    surfaces: ['codex', ...listNonCodexSurfaces(policies)]
+    surfaces: ['codex', ...otherSurfaces]
   }];
 }
 
@@ -435,18 +435,13 @@ function formatSurfaceList(surfaces: SurfaceId[]): string {
   return surfaces.join(', ');
 }
 
-function countOtherAgentSurfaces(policies: RepoPolicies): number {
-  let count = policies.mcpSurfaces.length;
-  if (policies.claude) {
-    count += 1;
-  }
-  return count;
-}
-
-function listNonCodexSurfaces(policies: RepoPolicies): SurfaceId[] {
-  const surfaces: SurfaceId[] = policies.mcpSurfaces.map((s) => s.surfaceId);
+function listOtherAgentSurfaces(policies: RepoPolicies): SurfaceId[] {
+  const surfaces: SurfaceId[] = policies.mcpSurfaces.map((surface) => surface.surfaceId);
   if (policies.claude) {
     surfaces.push('claude');
+  }
+  for (const finding of policies.parseFindings ?? []) {
+    surfaces.push(...finding.surfaces.filter((surface) => surface !== 'codex'));
   }
   return uniqueSurfaces(surfaces);
 }
