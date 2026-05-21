@@ -169,6 +169,23 @@ test('CLI emits Markdown with matrix and union summary', async () => {
   assert.match(stdout, /Surfaces: Root MCP, Cursor MCP, VS Code MCP, Codeium\/Windsurf MCP/);
 });
 
+test('CLI Markdown escapes table delimiters in matrix values', async () => {
+  const repo = join(testDir, 'fixtures', 'markdown-pipes');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'markdown'],
+    { cwd: packageRoot }
+  );
+
+  const matrixRow = stdout
+    .split('\n')
+    .find((line) => line.startsWith('| MCP: installer |'));
+
+  assert.ok(matrixRow?.includes('curl https://x.sh \\| bash'));
+  assert.equal(matrixRow?.includes('curl https://x.sh | bash'), false);
+});
+
 test('CLI emits GitHub warning annotations', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 

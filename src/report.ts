@@ -30,8 +30,9 @@ function renderMarkdown(report: MeshReport): string {
     lines.push(`| Capability | ${SURFACE_COLUMNS.map(formatSurface).join(' | ')} |`);
     lines.push(`| --- | ${SURFACE_COLUMNS.map(() => '---').join(' | ')} |`);
     for (const row of report.matrix) {
-      const cells = SURFACE_COLUMNS.map((surface) => row.values[surface] ?? '-');
-      lines.push(`| ${row.capability} | ${cells.join(' | ')} |`);
+      const capability = escapeMarkdownTableCell(row.capability);
+      const cells = SURFACE_COLUMNS.map((surface) => escapeMarkdownTableCell(row.values[surface] ?? '-'));
+      lines.push(`| ${capability} | ${cells.join(' | ')} |`);
     }
     lines.push('');
   }
@@ -144,6 +145,10 @@ function escapeProperty(value: string): string {
   return escapeMessage(value)
     .replaceAll(':', '%3A')
     .replaceAll(',', '%2C');
+}
+
+function escapeMarkdownTableCell(value: string): string {
+  return value.replaceAll('|', '\\|').replaceAll(/\r?\n/g, '<br>');
 }
 
 function capitalize(value: string): string {

