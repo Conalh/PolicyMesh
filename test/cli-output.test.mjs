@@ -172,6 +172,29 @@ test('CLI reports malformed Codex config instead of hiding the surface', async (
   assert.match(report.findings[0].recommendation, /TOML/);
 });
 
+test('CLI reports Claude MCP grants whose server is not defined in MCP configs', async () => {
+  const repo = join(testDir, 'fixtures', 'claude-missing-mcp-server');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'medium');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'claude_mcp_grant_missing_server');
+  assert.equal(report.findings[0].severity, 'medium');
+  assert.equal(report.findings[0].file, '.claude/settings.json');
+  assert.equal(report.findings[0].line, 4);
+  assert.equal(report.findings[0].subject, 'mcp__github__get_issue');
+  assert.deepEqual(report.findings[0].surfaces, ['claude', 'root_mcp']);
+  assert.match(report.findings[0].message, /github/);
+  assert.match(report.findings[0].recommendation, /MCP config/);
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
