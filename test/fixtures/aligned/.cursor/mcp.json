@@ -1,4 +1,6 @@
 {
+  // Cursor's documented MCP key is mcpServers. Cursor's own editor writes
+  // this file as JSONC, so PolicyMesh has to handle line comments here.
   "mcpServers": {
     "github": {
       "command": "npx",

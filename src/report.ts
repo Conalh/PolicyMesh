@@ -1,4 +1,4 @@
-import type { MeshReport, ReportFormat, SurfaceId } from './types.js';
+import type { Finding, MeshReport, ReportFormat, SurfaceId } from './types.js';
 
 export function renderReport(report: MeshReport, format: ReportFormat): string {
   if (format === 'json') {
@@ -27,10 +27,10 @@ function renderMarkdown(report: MeshReport): string {
 
   if (report.matrix.length > 0) {
     lines.push('## Surface matrix', '');
-    lines.push(`| Capability | ${SURFACE_COLUMNS.join(' | ')} |`);
+    lines.push(`| Capability | ${SURFACE_COLUMNS.map(formatSurface).join(' | ')} |`);
     lines.push(`| --- | ${SURFACE_COLUMNS.map(() => '---').join(' | ')} |`);
     for (const row of report.matrix) {
-      const cells = SURFACE_COLUMNS.map((surface) => row.values[surface] ?? '—');
+      const cells = SURFACE_COLUMNS.map((surface) => row.values[surface] ?? '-');
       lines.push(`| ${row.capability} | ${cells.join(' | ')} |`);
     }
     lines.push('');
@@ -52,7 +52,7 @@ function renderMarkdown(report: MeshReport): string {
     lines.push(`## ${capitalize(severity)}`, '');
     for (const finding of matches) {
       lines.push(`- **${finding.subject}** (${finding.file}): ${finding.message}`);
-      lines.push(`  Surfaces: ${finding.surfaces.join(', ')}`);
+      lines.push(`  Surfaces: ${formatSurfaceList(finding.surfaces)}`);
       lines.push(`  Recommendation: ${finding.recommendation}`);
     }
     lines.push('');
@@ -70,7 +70,7 @@ function renderText(report: MeshReport): string {
   }
 
   for (const finding of report.findings) {
-    lines.push(`[${finding.severity.toUpperCase()}] ${finding.subject}: ${finding.message}`);
+    lines.push(`[${finding.severity.toUpperCase()}] ${finding.subject}: ${finding.message} Surfaces: ${formatSurfaceList(finding.surfaces)}.`);
   }
 
   if (report.findings.length === 0) {
@@ -86,15 +86,17 @@ function renderGithubAnnotations(report: MeshReport): string {
   }
 
   return report.findings
-    .map((finding) => {
-      const title = `PolicyMesh ${finding.severity} policy conflict`;
-      const message = `${finding.message} Recommendation: ${finding.recommendation}`;
-      const properties = [`file=${escapeProperty(finding.file)}`];
-      if (finding.line && finding.line > 0) {
-        properties.push(`line=${finding.line}`);
-      }
-      properties.push(`title=${escapeProperty(title)}`);
-      return `::warning ${properties.join(',')}::${escapeMessage(message)}`;
+    .flatMap((finding) => {
+      const title = `PolicyMesh ${finding.severity} finding`;
+      const message = `${finding.message} Surfaces: ${formatSurfaceList(finding.surfaces)}. Recommendation: ${finding.recommendation}`;
+      return annotationLocations(finding).map((location) => {
+        const properties = [`file=${escapeProperty(location.file)}`];
+        if (location.line && location.line > 0) {
+          properties.push(`line=${location.line}`);
+        }
+        properties.push(`title=${escapeProperty(title)}`);
+        return `::warning ${properties.join(',')}::${escapeMessage(message)}`;
+      });
     })
     .join('\n') + '\n';
 }
@@ -107,6 +109,29 @@ const SURFACE_COLUMNS: SurfaceId[] = [
   'claude',
   'codex'
 ];
+
+const SURFACE_LABELS: Record<SurfaceId, string> = {
+  root_mcp: 'Root MCP',
+  cursor_mcp: 'Cursor MCP',
+  vscode_mcp: 'VS Code MCP',
+  windsurf_mcp: 'Codeium/Windsurf MCP',
+  claude: 'Claude',
+  codex: 'Codex'
+};
+
+function formatSurface(surface: SurfaceId): string {
+  return SURFACE_LABELS[surface];
+}
+
+function formatSurfaceList(surfaces: SurfaceId[]): string {
+  return surfaces.map(formatSurface).join(', ');
+}
+
+function annotationLocations(finding: Finding): Array<{ file: string; line?: number }> {
+  return finding.locations?.length
+    ? finding.locations.map((location) => ({ file: location.file, line: location.line }))
+    : [{ file: finding.file, line: finding.line }];
+}
 
 function escapeMessage(value: string): string {
   return value

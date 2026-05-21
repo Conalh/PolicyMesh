@@ -1,5 +1,6 @@
 import { configPath, isRecord, lineOfJsonKey, readJsonObjectWithSource } from '../discovery.js';
-import type { McpServer, McpSurface, SurfaceId } from '../types.js';
+import { configParseFinding } from './errors.js';
+import type { Finding, McpServer, McpSurface, SurfaceId } from '../types.js';
 
 const MCP_CONFIGS = [
   { surfaceId: 'root_mcp' as const, path: '.mcp.json', serverKeys: ['mcpServers'] },
@@ -17,11 +18,25 @@ interface McpServerRaw {
   serverUrl?: string;
 }
 
-export async function parseMcpSurfaces(root: string): Promise<McpSurface[]> {
+interface McpParseResult {
+  surfaces: McpSurface[];
+  findings: Finding[];
+}
+
+interface McpServersReadResult {
+  servers: McpServer[];
+  finding?: Finding;
+}
+
+export async function parseMcpSurfaces(root: string): Promise<McpParseResult> {
   const surfaces: McpSurface[] = [];
+  const findings: Finding[] = [];
 
   for (const config of MCP_CONFIGS) {
-    const servers = await readMcpServers(root, config);
+    const { servers, finding } = await readMcpServers(root, config);
+    if (finding) {
+      findings.push(finding);
+    }
     if (servers.length > 0) {
       surfaces.push({
         surfaceId: config.surfaceId,
@@ -31,21 +46,28 @@ export async function parseMcpSurfaces(root: string): Promise<McpSurface[]> {
     }
   }
 
-  return surfaces;
+  return { surfaces, findings };
 }
 
 async function readMcpServers(
   root: string,
   config: { surfaceId: SurfaceId; path: string; serverKeys: readonly string[] }
-): Promise<McpServer[]> {
+): Promise<McpServersReadResult> {
   const source = await readJsonObjectWithSource(configPath(root, config.path));
   if (!source.text.trim()) {
-    return [];
+    return { servers: [] };
+  }
+
+  if (source.parseError) {
+    return {
+      servers: [],
+      finding: configParseFinding(config.path, config.surfaceId, source.parseError)
+    };
   }
 
   const rawServers = readServerMap(source.json, config.serverKeys);
   if (!isRecord(rawServers)) {
-    return [];
+    return { servers: [] };
   }
 
   const servers: McpServer[] = [];
@@ -78,7 +100,7 @@ async function readMcpServers(
     });
   }
 
-  return servers;
+  return { servers };
 }
 
 function readServerMap(json: Record<string, unknown>, serverKeys: readonly string[]): unknown {

@@ -40,6 +40,11 @@ function detectMcpCommandMismatch(policies: RepoPolicies): Finding[] {
       severity: 'high',
       file: primary.file,
       line: primary.line,
+      locations: servers.map((server) => ({
+        file: server.file,
+        line: server.line,
+        surface: server.surfaceId
+      })),
       subject: name,
       message: `MCP server "${name}" has different launch commands across surfaces: ${commandList}.`,
       recommendation: 'Use the same pinned MCP server definition in every MCP config file, or rename servers that intentionally differ.',
@@ -296,6 +301,11 @@ export function buildEffectiveUnion(policies: RepoPolicies): string[] {
 
   if (policies.codex?.sandbox) {
     union.push(`Codex sandbox: ${policies.codex.sandbox}`);
+  }
+
+  const parseFindingCount = policies.parseFindings?.length ?? 0;
+  if (parseFindingCount > 0) {
+    union.push(`${parseFindingCount} unreadable agent config${parseFindingCount === 1 ? '' : 's'}`);
   }
 
   if (union.length === 0) {
