@@ -13,10 +13,17 @@ export interface Finding {
   severity: Severity;
   file: string;
   line?: number;
+  locations?: FindingLocation[];
   subject: string;
   message: string;
   recommendation: string;
   surfaces: SurfaceId[];
+}
+
+export interface FindingLocation {
+  file: string;
+  line?: number;
+  surface?: SurfaceId;
 }
 
 export interface McpServer {
@@ -58,6 +65,7 @@ export interface RepoPolicies {
   mcpSurfaces: McpSurface[];
   claude?: ClaudePolicy;
   codex?: CodexPolicy;
+  parseFindings?: Finding[];
 }
 
 export interface MatrixRow {

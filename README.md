@@ -47,6 +47,7 @@ node dist/index.js audit --repo test/fixtures/conflicted --format markdown
 That fixture intentionally includes:
 
 - The same `github` MCP server with different launch commands in `.mcp.json` and `.cursor/mcp.json`.
+- VS Code and Codeium/Windsurf MCP configs participating in the same cross-surface mismatch.
 - An unpinned `@latest` MCP package in Cursor config.
 - Broad Claude allow rules with a narrow `.env` deny and no `PreToolUse` hook.
 - Codex network access and trusted project settings alongside the risky MCP setup.
@@ -115,6 +116,9 @@ PolicyMesh v0 detects:
 - Codex network access enabled alongside other agent surfaces.
 - Codex trusted project settings combined with risky MCP configuration.
 - Codex sandbox posture gaps relative to Claude deny rules.
+- Malformed JSON agent config files that would otherwise hide a policy surface.
+
+PolicyMesh parses VS Code and Cursor configs as JSONC — `//` line comments, `/* */` block comments, and trailing commas are all accepted, so the audit doesn't false-fail on real-world editor output. `isBroadAllow` distinguishes scoped grants like `WebFetch(domain:example.com)` and `mcp__github__get_issue` from bare or wildcarded grants; narrow grants are not flagged.
 
 ## Complements ScopeTrail
 
@@ -129,6 +133,9 @@ PolicyMesh is intentionally small right now. If a warning is noisy, open a
 [false-positive report](https://github.com/Conalh/PolicyMesh/issues/new?template=false-positive.yml).
 If your team uses another agent config surface, open a
 [missing-surface request](https://github.com/Conalh/PolicyMesh/issues/new?template=missing-surface.yml).
+If your team is testing PolicyMesh across multiple repositories or needs org-level
+policy review, open a
+[team validation signal](https://github.com/Conalh/PolicyMesh/issues/new?template=team-validation.yml).
 
 ## Development
 

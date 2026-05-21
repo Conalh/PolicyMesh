@@ -8,13 +8,18 @@ export async function readJsonObject(path: string): Promise<Record<string, unkno
 export interface JsonObjectSource {
   json: Record<string, unknown>;
   text: string;
+  parseError?: JsonParseError;
+}
+
+export interface JsonParseError {
+  message: string;
+  line?: number;
 }
 
 export async function readJsonObjectWithSource(path: string): Promise<JsonObjectSource> {
+  let raw = '';
   try {
-    const raw = await readFile(path, 'utf8');
-    const parsed: unknown = JSON.parse(raw);
-    return { json: isRecord(parsed) ? parsed : {}, text: raw };
+    raw = await readFile(path, 'utf8');
   } catch (error) {
     if (isNodeError(error) && error.code === 'ENOENT') {
       return { json: {}, text: '' };
@@ -22,6 +27,137 @@ export async function readJsonObjectWithSource(path: string): Promise<JsonObject
 
     throw error;
   }
+
+  const stripped = stripJsonComments(raw);
+
+  try {
+    const parsed: unknown = JSON.parse(stripped);
+    return { json: isRecord(parsed) ? parsed : {}, text: raw };
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return {
+        json: {},
+        text: raw,
+        parseError: {
+          message: error.message,
+          line: lineOfJsonParseError(stripped, error)
+        }
+      };
+    }
+
+    throw error;
+  }
+}
+
+// VS Code and Cursor both ship MCP configs as JSONC — comments and the
+// occasional trailing comma are normal, not malformed. We strip them
+// before JSON.parse so those files audit cleanly. Replacing comment
+// bytes with spaces (and preserving newlines in block comments) keeps
+// the original byte/line positions intact for error reporting and the
+// downstream line locators in lineOfJsonKey / lineOfJsonStringValue.
+function stripJsonComments(raw: string): string {
+  let out = '';
+  let inString = false;
+  let escape = false;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index];
+    const next = raw[index + 1];
+
+    if (inString) {
+      out += char;
+      if (escape) {
+        escape = false;
+      } else if (char === '\\') {
+        escape = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      out += char;
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      while (index < raw.length && raw[index] !== '\n') {
+        out += ' ';
+        index += 1;
+      }
+      // restore loop invariant: the for-loop's index++ will advance past '\n'
+      if (index < raw.length) {
+        out += raw[index];
+      }
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      out += '  ';
+      index += 2;
+      while (index < raw.length && !(raw[index] === '*' && raw[index + 1] === '/')) {
+        out += raw[index] === '\n' ? '\n' : ' ';
+        index += 1;
+      }
+      if (index < raw.length) {
+        out += '  ';
+        index += 1; // for-loop will advance past the '/'
+      }
+      continue;
+    }
+
+    out += char;
+  }
+
+  return stripTrailingCommas(out);
+}
+
+// Trailing commas before `]` or `}` are legal in JSONC; JSON.parse rejects
+// them. Removing them after comment-stripping keeps byte positions stable
+// because we replace each removed comma with a space.
+function stripTrailingCommas(raw: string): string {
+  let out = '';
+  let inString = false;
+  let escape = false;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index];
+
+    if (inString) {
+      out += char;
+      if (escape) {
+        escape = false;
+      } else if (char === '\\') {
+        escape = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      out += char;
+      continue;
+    }
+
+    if (char === ',') {
+      let look = index + 1;
+      while (look < raw.length && /\s/.test(raw[look])) {
+        look += 1;
+      }
+      if (raw[look] === ']' || raw[look] === '}') {
+        out += ' ';
+        continue;
+      }
+    }
+
+    out += char;
+  }
+
+  return out;
 }
 
 export function configPath(root: string, relativePath: string): string {
@@ -50,6 +186,20 @@ function lineOfPattern(text: string, pattern: RegExp): number | undefined {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function lineOfJsonParseError(text: string, error: SyntaxError): number | undefined {
+  const positionMatch = /position (\d+)/.exec(error.message);
+  if (!positionMatch) {
+    return undefined;
+  }
+
+  const position = Number(positionMatch[1]);
+  if (!Number.isInteger(position) || position < 0) {
+    return undefined;
+  }
+
+  return text.slice(0, position).split(/\r?\n/).length;
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

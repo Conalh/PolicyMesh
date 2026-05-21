@@ -30,3 +30,25 @@ test('PolicyMesh workflow self-dogfoods the action', async () => {
   assert.match(workflow, /uses: \.\//);
   assert.match(workflow, /fail-on: none/);
 });
+
+test('issue templates collect detector and team validation feedback', async () => {
+  const falsePositive = await readFile(join(packageRoot, '.github', 'ISSUE_TEMPLATE', 'false-positive.yml'), 'utf8');
+  const missingSurface = await readFile(join(packageRoot, '.github', 'ISSUE_TEMPLATE', 'missing-surface.yml'), 'utf8');
+  const teamValidation = await readFile(join(packageRoot, '.github', 'ISSUE_TEMPLATE', 'team-validation.yml'), 'utf8');
+  const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
+
+  assert.match(falsePositive, /repository-count/);
+  assert.match(missingSurface, /Review surface/);
+  assert.match(teamValidation, /Approximate repository count/);
+  assert.match(teamValidation, /Team workflow/);
+  assert.match(teamValidation, /Paid-layer signal/);
+  assert.match(readme, /team-validation\.yml/);
+});
+
+test('README documents Action credibility and robustness signals', async () => {
+  const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
+
+  assert.match(readme, /VS Code and Codeium\/Windsurf MCP configs/);
+  assert.match(readme, /Malformed JSON agent config files/);
+  assert.match(readme, /team validation signal/);
+});

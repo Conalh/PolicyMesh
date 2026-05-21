@@ -12,7 +12,7 @@ const severityRank: Record<MeshRating, number> = {
 
 export async function auditRepo(root: string): Promise<MeshReport> {
   const policies = await parseRepoPolicies(root);
-  const findings = runMeshRules(policies);
+  const findings = [...(policies.parseFindings ?? []), ...runMeshRules(policies)];
 
   return {
     rating: rateFindings(findings),

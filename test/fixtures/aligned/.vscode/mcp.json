@@ -1,0 +1,12 @@
+// VS Code ships .vscode/mcp.json as JSONC — comments and trailing commas
+// are normal. PolicyMesh must parse this without flagging a parse error.
+{
+  /* The github server is the same shape as in .mcp.json / .cursor/mcp.json
+     so the surface matrix should align cleanly. */
+  "servers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@1.2.3"],
+    },
+  },
+}

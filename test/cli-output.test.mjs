@@ -21,7 +21,7 @@ test('CLI aligned fixture returns none rating', async () => {
 
   assert.equal(report.rating, 'none');
   assert.equal(report.findingCount, 0);
-  assert.ok(report.surfaceCount >= 3);
+  assert.equal(report.surfaceCount, 6);
   assert.ok(report.effectiveUnion.length > 0);
   assert.ok(report.matrix.length > 0);
 });
@@ -49,6 +49,25 @@ test('CLI conflicted fixture returns high rating with expected kinds', async () 
   assert.ok(kinds.includes('codex_claude_posture_gap'));
 });
 
+test('CLI reports malformed agent config instead of crashing', async () => {
+  const repo = join(testDir, 'fixtures', 'malformed');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'high');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 1);
+  assert.ok(report.effectiveUnion.includes('1 unreadable agent config'));
+  assert.equal(report.findings[0].kind, 'config_parse_error');
+  assert.equal(report.findings[0].file, '.cursor/mcp.json');
+  assert.match(report.findings[0].message, /Could not parse Cursor MCP config/);
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
@@ -61,8 +80,10 @@ test('CLI emits Markdown with matrix and union summary', async () => {
   assert.match(stdout, /# PolicyMesh agent policy review: HIGH/);
   assert.match(stdout, /## Effective capability union/);
   assert.match(stdout, /## Surface matrix/);
+  assert.match(stdout, /\| Capability \| Root MCP \| Cursor MCP \| VS Code MCP \| Codeium\/Windsurf MCP \| Claude \| Codex \|/);
   assert.match(stdout, /MCP: github/);
   assert.match(stdout, /bash wildcards allowed \(Claude\)/);
+  assert.match(stdout, /Surfaces: Root MCP, Cursor MCP, VS Code MCP, Codeium\/Windsurf MCP/);
 });
 
 test('CLI emits GitHub warning annotations', async () => {
@@ -75,5 +96,20 @@ test('CLI emits GitHub warning annotations', async () => {
   );
 
   assert.match(stdout, /^::warning file=/m);
-  assert.match(stdout, /mcp_command_mismatch|different launch commands|PolicyMesh high policy conflict/);
+  assert.match(stdout, /different launch commands/);
+  assert.match(stdout, /title=PolicyMesh high finding/);
+  assert.match(stdout, /Surfaces: Root MCP, Cursor MCP, VS Code MCP, Codeium\/Windsurf MCP/);
+
+  const mismatchAnnotations = stdout
+    .split('\n')
+    .filter((line) => line.includes('different launch commands'));
+  assert.deepEqual(
+    mismatchAnnotations.map((line) => /^::warning file=([^,]+)/.exec(line)?.[1]).sort(),
+    [
+      '.codeium/windsurf/mcp_config.json',
+      '.cursor/mcp.json',
+      '.mcp.json',
+      '.vscode/mcp.json'
+    ]
+  );
 });

@@ -1,0 +1,53 @@
+name: Team validation signal
+description: Share how PolicyMesh fits or fails in a team or multi-repo workflow.
+title: "[team]: "
+labels: ["team-validation"]
+body:
+  - type: dropdown
+    id: repository-count
+    attributes:
+      label: Approximate repository count
+      description: Help size the team workflow without sharing private repo names.
+      options:
+        - 1 repository
+        - 2-5 repositories
+        - 6-20 repositories
+        - 21+ repositories
+        - Not sure yet
+    validations:
+      required: true
+  - type: textarea
+    id: team-workflow
+    attributes:
+      label: Team workflow
+      description: Describe how AI-agent config is reviewed today and where PolicyMesh would fit.
+      placeholder: "Example: pull request checks for each app repo, security review for shared MCP config, platform team owns defaults."
+    validations:
+      required: true
+  - type: textarea
+    id: paid-layer-signal
+    attributes:
+      label: Paid-layer signal
+      description: What would make a paid team layer worth validating before any SaaS is built?
+      placeholder: "Example: org-wide baseline files, cross-repo reporting, severity policy, audit exports, team exceptions, Slack summary."
+    validations:
+      required: true
+  - type: dropdown
+    id: free-action-fit
+    attributes:
+      label: Free Action fit
+      description: Is the free GitHub Action enough for the current workflow?
+      options:
+        - Yes, free Action is enough
+        - Mostly, but needs better rules
+        - No, needs team or org features
+        - Not sure yet
+    validations:
+      required: true
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Adoption blockers
+      description: List anything that would stop the team from trying PolicyMesh in pull requests.
+      placeholder: "Example: too noisy, unsupported config surface, no baseline mode, unclear severity, cannot fail builds yet."
+
