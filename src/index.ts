@@ -54,6 +54,9 @@ function parseAuditArgs(argv: string[]): ParsedAuditArgs {
     const value = argv[index + 1];
 
     if (arg === '--repo') {
+      if (!value || value.startsWith('--')) {
+        return { ok: false, error: 'Missing value for --repo' };
+      }
       repo = value;
       index += 1;
     } else if (arg === '--format') {
