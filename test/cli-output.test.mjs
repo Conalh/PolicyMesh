@@ -195,6 +195,26 @@ test('CLI reports Claude MCP grants whose server is not defined in MCP configs',
   assert.match(report.findings[0].recommendation, /MCP config/);
 });
 
+test('CLI reports servers missing from configured but empty MCP surfaces', async () => {
+  const repo = join(testDir, 'fixtures', 'empty-mcp-surface');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'low');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'mcp_server_missing');
+  assert.equal(report.findings[0].severity, 'low');
+  assert.equal(report.findings[0].subject, 'github');
+  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'cursor_mcp']);
+  assert.match(report.findings[0].message, /missing from cursor_mcp/);
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
