@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { auditRepo } from './audit.js';
 import { renderReport } from './report.js';
@@ -26,6 +27,12 @@ async function runAudit(argv: string[]): Promise<number> {
   const parsed = parseAuditArgs(argv);
   if (!parsed.ok) {
     process.stderr.write(`${parsed.error}\n${usage()}\n`);
+    return 2;
+  }
+
+  const repoError = await validateRepoPath(parsed.repo);
+  if (repoError) {
+    process.stderr.write(`${repoError}\n`);
     return 2;
   }
 
@@ -65,6 +72,22 @@ function parseAuditArgs(argv: string[]): ParsedAuditArgs {
 
 function isReportFormat(value: string | undefined): value is ReportFormat {
   return value === 'text' || value === 'markdown' || value === 'json' || value === 'github';
+}
+
+async function validateRepoPath(repo: string): Promise<string | undefined> {
+  try {
+    const stats = await stat(repo);
+    return stats.isDirectory() ? undefined : `Repository path is not a directory: ${repo}`;
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') {
+      return `Repository path does not exist: ${repo}`;
+    }
+    throw error;
+  }
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
 }
 
 const invokedPath = process.argv[1] ? fileURLToPath(import.meta.url) === process.argv[1] : false;
