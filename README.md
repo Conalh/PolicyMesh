@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.7
+      - uses: Conalh/PolicyMesh@v0.1.8
         with:
           fail-on: none
 ```
@@ -129,7 +129,7 @@ PolicyMesh v0 detects:
 - Claude broad allow rules overlapping with specific deny rules.
 - Broad Claude allow rules without a `PreToolUse` guard hook.
 - Claude MCP grants for servers missing from MCP configs.
-- Codex network access enabled alongside other agent surfaces.
+- Codex network access enabled alongside other configured or unreadable agent surfaces.
 - Codex trusted project settings combined with risky MCP configuration.
 - Codex sandbox posture gaps relative to Claude deny rules.
 - Malformed JSON and Codex TOML agent config files that would otherwise hide a policy surface.
