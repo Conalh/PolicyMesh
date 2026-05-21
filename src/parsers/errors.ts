@@ -11,6 +11,8 @@ const SURFACE_NAMES: Record<SurfaceId, string> = {
 };
 
 export function configParseFinding(file: string, surface: SurfaceId, parseError: JsonParseError): Finding {
+  const syntax = surface === 'codex' ? 'TOML' : 'JSON';
+
   return {
     kind: 'config_parse_error',
     severity: 'high',
@@ -19,7 +21,7 @@ export function configParseFinding(file: string, surface: SurfaceId, parseError:
     locations: [{ file, line: parseError.line, surface }],
     subject: file,
     message: `Could not parse ${SURFACE_NAMES[surface]} config at ${file}: ${parseError.message}.`,
-    recommendation: 'Fix the JSON syntax so PolicyMesh can audit this agent policy surface.',
+    recommendation: `Fix the ${syntax} syntax so PolicyMesh can audit this agent policy surface.`,
     surfaces: [surface]
   };
 }

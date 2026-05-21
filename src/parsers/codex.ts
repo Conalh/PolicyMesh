@@ -1,44 +1,70 @@
 import { readFile } from 'node:fs/promises';
 import { configPath } from '../discovery.js';
-import type { CodexPolicy } from '../types.js';
+import { configParseFinding } from './errors.js';
+import type { JsonParseError } from '../discovery.js';
+import type { CodexPolicy, Finding } from '../types.js';
 
 const CODEX_CONFIG_FILE = '.codex/config.toml';
+const WATCHED_CODEX_KEYS = new Set([
+  'sandbox_mode',
+  'sandbox',
+  'windows.sandbox',
+  'approval_policy',
+  'network_access',
+  'sandbox_workspace_write.network_access',
+  'projects.trust_level'
+]);
 
-export async function parseCodexPolicy(root: string): Promise<CodexPolicy | undefined> {
+interface CodexParseResult {
+  policy?: CodexPolicy;
+  findings: Finding[];
+}
+
+export async function parseCodexPolicy(root: string): Promise<CodexParseResult> {
   let text = '';
   try {
     text = await readFile(configPath(root, CODEX_CONFIG_FILE), 'utf8');
   } catch (error) {
     if (isNodeError(error) && error.code === 'ENOENT') {
-      return undefined;
+      return { findings: [] };
     }
     throw error;
   }
 
   if (!text.trim()) {
-    return undefined;
+    return { findings: [] };
   }
 
-  const entries = parseTomlEntries(text);
+  const parsed = parseTomlEntries(text);
+  if (parsed.parseError) {
+    return {
+      findings: [configParseFinding(CODEX_CONFIG_FILE, 'codex', parsed.parseError)]
+    };
+  }
+
+  const entries = parsed.entries;
   const sandbox = entries.get('sandbox_mode') ?? entries.get('sandbox') ?? entries.get('windows.sandbox');
   const approval = entries.get('approval_policy');
   const network = entries.get('network_access') ?? entries.get('sandbox_workspace_write.network_access');
   const trust = entries.get('projects.trust_level');
 
   if (!sandbox && !approval && !network && !trust) {
-    return undefined;
+    return { findings: [] };
   }
 
   return {
-    surfaceId: 'codex',
-    file: CODEX_CONFIG_FILE,
-    sandbox: sandbox?.value,
-    sandboxLine: sandbox?.line,
-    approvalPolicy: approval?.value,
-    networkAccess: network?.value === 'true',
-    networkLine: network?.line,
-    trusted: trust?.value === 'trusted',
-    trustLine: trust?.line
+    policy: {
+      surfaceId: 'codex',
+      file: CODEX_CONFIG_FILE,
+      sandbox: sandbox?.value,
+      sandboxLine: sandbox?.line,
+      approvalPolicy: approval?.value,
+      networkAccess: network?.value === 'true',
+      networkLine: network?.line,
+      trusted: trust?.value === 'trusted',
+      trustLine: trust?.line
+    },
+    findings: []
   };
 }
 
@@ -67,7 +93,12 @@ interface TomlEntry {
   value: string;
 }
 
-function parseTomlEntries(text: string): Map<string, TomlEntry> {
+interface TomlParseResult {
+  entries: Map<string, TomlEntry>;
+  parseError?: JsonParseError;
+}
+
+function parseTomlEntries(text: string): TomlParseResult {
   const entries = new Map<string, TomlEntry>();
   let section = '';
 
@@ -85,8 +116,28 @@ function parseTomlEntries(text: string): Map<string, TomlEntry> {
       continue;
     }
 
+    if (trimmed.startsWith('[')) {
+      return {
+        entries,
+        parseError: {
+          message: 'Invalid TOML section header',
+          line: index + 1
+        }
+      };
+    }
+
     const keyMatch = /^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/.exec(trimmed);
     if (!keyMatch) {
+      const malformedKey = findMalformedWatchedKey(section, trimmed);
+      if (malformedKey) {
+        return {
+          entries,
+          parseError: {
+            message: `Invalid TOML assignment for "${malformedKey}"; expected key = value`,
+            line: index + 1
+          }
+        };
+      }
       continue;
     }
 
@@ -94,10 +145,18 @@ function parseTomlEntries(text: string): Map<string, TomlEntry> {
     const value = parseScalarValue(keyMatch[2]);
     if (value !== undefined) {
       entries.set(key, { line: index + 1, value });
+    } else if (WATCHED_CODEX_KEYS.has(key)) {
+      return {
+        entries,
+        parseError: {
+          message: `Invalid TOML scalar value for "${key}"`,
+          line: index + 1
+        }
+      };
     }
   }
 
-  return entries;
+  return { entries };
 }
 
 function normalizeSection(section: string): string {
@@ -119,6 +178,16 @@ function parseScalarValue(rawValue: string): string | undefined {
 
   const bareMatch = /^(true|false|[A-Za-z0-9_.-]+)/.exec(trimmed);
   return bareMatch?.[1].toLowerCase();
+}
+
+function findMalformedWatchedKey(section: string, trimmed: string): string | undefined {
+  const token = /^([A-Za-z0-9_.-]+)/.exec(trimmed)?.[1];
+  if (!token) {
+    return undefined;
+  }
+
+  const key = normalizeKey(section, token);
+  return WATCHED_CODEX_KEYS.has(key) ? key : undefined;
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

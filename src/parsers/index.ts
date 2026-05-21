@@ -13,8 +13,8 @@ export async function parseRepoPolicies(root: string): Promise<RepoPolicies> {
   return {
     mcpSurfaces: mcp.surfaces,
     claude: claude.policy,
-    codex,
-    parseFindings: [...mcp.findings, ...claude.findings]
+    codex: codex.policy,
+    parseFindings: [...mcp.findings, ...claude.findings, ...codex.findings]
   };
 }
 
