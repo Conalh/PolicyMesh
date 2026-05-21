@@ -7,12 +7,49 @@ export function runMeshRules(policies: RepoPolicies): Finding[] {
     ...detectMcpCommandMismatch(policies),
     ...detectMcpServerMissing(policies),
     ...detectMcpUnpinned(policies),
+    ...detectClaudeMcpGrantMissingServer(policies),
     ...detectClaudeDenyAllowOverlap(policies),
     ...detectClaudeBroadAllowNoGuard(policies),
     ...detectCodexNetworkWithoutReview(policies),
     ...detectCodexTrustedWithRiskyMcp(policies),
     ...detectCodexClaudePostureGap(policies)
   ];
+
+  return findings;
+}
+
+function detectClaudeMcpGrantMissingServer(policies: RepoPolicies): Finding[] {
+  const claude = policies.claude;
+  if (!claude) {
+    return findingsEmpty();
+  }
+
+  const configuredServers = new Set(
+    policies.mcpSurfaces
+      .flatMap((surface) => surface.servers)
+      .map((server) => server.name.toLowerCase())
+  );
+  const mcpSurfaces = uniqueSurfaces(policies.mcpSurfaces.map((surface) => surface.surfaceId));
+  const findings: Finding[] = [];
+
+  for (const [permission, line] of claude.allow) {
+    const server = claudeMcpServerName(permission);
+    if (!server || configuredServers.has(server.toLowerCase())) {
+      continue;
+    }
+
+    findings.push({
+      kind: 'claude_mcp_grant_missing_server',
+      severity: 'medium',
+      file: claude.file,
+      line,
+      locations: [{ file: claude.file, line, surface: 'claude' }],
+      subject: permission,
+      message: `Claude grants MCP server "${server}" via "${permission}", but no MCP config defines that server.`,
+      recommendation: 'Define the server in an MCP config file or remove the Claude MCP permission if the server is not intended.',
+      surfaces: uniqueSurfaces(['claude', ...mcpSurfaces])
+    });
+  }
 
   return findings;
 }
@@ -420,4 +457,22 @@ function truncate(value: string, max: number): string {
 
 function findingsEmpty(): Finding[] {
   return [];
+}
+
+function claudeMcpServerName(permission: string): string | undefined {
+  const start = permission.toLowerCase().indexOf('mcp__');
+  if (start === -1) {
+    return undefined;
+  }
+  if (start > 0 && /[a-z0-9_]/i.test(permission[start - 1])) {
+    return undefined;
+  }
+
+  const grant = permission.slice(start + 'mcp__'.length).match(/^[A-Za-z0-9_*-]+/)?.[0] ?? '';
+  const server = grant.split('__')[0];
+  if (!server || server.includes('*')) {
+    return undefined;
+  }
+
+  return server;
 }

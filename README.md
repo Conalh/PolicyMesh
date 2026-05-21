@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.5
+      - uses: Conalh/PolicyMesh@v0.1.6
         with:
           fail-on: none
 ```
@@ -127,6 +127,7 @@ PolicyMesh v0 detects:
 - Unpinned MCP launch commands such as `@latest`.
 - Claude broad allow rules overlapping with specific deny rules.
 - Broad Claude allow rules without a `PreToolUse` guard hook.
+- Claude MCP grants for servers missing from MCP configs.
 - Codex network access enabled alongside other agent surfaces.
 - Codex trusted project settings combined with risky MCP configuration.
 - Codex sandbox posture gaps relative to Claude deny rules.
