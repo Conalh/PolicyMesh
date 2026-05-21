@@ -25,14 +25,15 @@ It is intentionally not a hosted scanner. The Action reads the checked-out repos
 
 ## Part of an AI-agent governance suite
 
-Four tools mapping orthogonal failure modes of AI-agent deployment:
+Five tools mapping orthogonal failure modes of AI-agent deployment:
 
 - **[ScopeTrail](https://github.com/Conalh/ScopeTrail)** — config drift over time (PR-level).
 - **PolicyMesh** *(this repo)* — policy contradictions across agent surfaces.
 - **[CapabilityEcho](https://github.com/Conalh/CapabilityEcho)** — capability drift via code, not config.
 - **[TaskBound](https://github.com/Conalh/TaskBound)** — scope creep after the agent runs.
+- **[SessionTrail](https://github.com/Conalh/SessionTrail)** — runtime behavior review across agent session transcripts.
 
-The first three are preventive (static analysis of config and code). TaskBound is detective (behavioral, comparing stated intent vs. actual diff).
+ScopeTrail, PolicyMesh, and CapabilityEcho are preventive (static analysis of config and code). SessionTrail is runtime (in-session transcript review). TaskBound is detective (stated task vs. actual diff).
 
 ## Demo
 
