@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": ["Bash(npm test)", "Read(src/**)"],
+    "deny": ["Read(.env)", "Read(**/*.pem)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/bash-guard.ps1"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,99 @@
+name: PolicyMesh
+description: Cross-surface AI agent policy consistency review.
+author: Conal
+
+branding:
+  icon: git-compare
+  color: blue
+
+inputs:
+  repo:
+    description: Repository checkout path to inspect. Defaults to GITHUB_WORKSPACE.
+    required: false
+    default: ''
+  fail-on:
+    description: Severity that fails the action. Use none, low, medium, high, or critical.
+    required: false
+    default: none
+
+outputs:
+  rating:
+    description: Highest PolicyMesh policy conflict rating.
+    value: ${{ steps.run.outputs.rating }}
+  finding-count:
+    description: Total PolicyMesh findings in the audit.
+    value: ${{ steps.run.outputs.finding-count }}
+  surface-count:
+    description: Number of configured agent policy surfaces found.
+    value: ${{ steps.run.outputs.surface-count }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install PolicyMesh
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_ACTION_PATH"
+        npm ci
+
+    - name: Build PolicyMesh
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_ACTION_PATH"
+        npm run build
+
+    - name: Run PolicyMesh agent policy audit
+      id: run
+      shell: bash
+      env:
+        MESH_REPO: ${{ inputs.repo }}
+        MESH_FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        set -euo pipefail
+
+        repo="${MESH_REPO:-$GITHUB_WORKSPACE}"
+        fail_on="${MESH_FAIL_ON:-none}"
+
+        report_file="${RUNNER_TEMP:-.}/policymesh-report.md"
+        json_file="${RUNNER_TEMP:-.}/policymesh-report.json"
+
+        node "$GITHUB_ACTION_PATH/dist/index.js" audit --repo "$repo" --format markdown | tee "$report_file"
+        node "$GITHUB_ACTION_PATH/dist/index.js" audit --repo "$repo" --format json > "$json_file"
+        node "$GITHUB_ACTION_PATH/dist/index.js" audit --repo "$repo" --format github
+
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          cat "$report_file" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+        rating="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).rating)" "$json_file")"
+        finding_count="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).findingCount)" "$json_file")"
+        surface_count="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).surfaceCount)" "$json_file")"
+        echo "rating=$rating" >> "$GITHUB_OUTPUT"
+        echo "finding-count=$finding_count" >> "$GITHUB_OUTPUT"
+        echo "surface-count=$surface_count" >> "$GITHUB_OUTPUT"
+
+        rank() {
+          case "$1" in
+            none) echo 0 ;;
+            low) echo 1 ;;
+            medium) echo 2 ;;
+            high) echo 3 ;;
+            critical) echo 4 ;;
+            *) echo -1 ;;
+          esac
+        }
+
+        fail_rank="$(rank "$fail_on")"
+        rating_rank="$(rank "$rating")"
+
+        if [ "$fail_rank" -lt 0 ]; then
+          echo "::error::Invalid fail-on value '$fail_on'. Use none, low, medium, high, or critical."
+          exit 2
+        fi
+
+        if [ "$fail_rank" -gt 0 ] && [ "$rating_rank" -ge "$fail_rank" ]; then
+          echo "::error::PolicyMesh policy conflict rating $rating meets fail-on threshold $fail_on."
+          exit 1
+        fi

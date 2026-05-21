@@ -1,0 +1,50 @@
+name: Missing config surface
+description: Ask PolicyMesh to support another agent config, rule file, or permission model.
+title: "[surface]: "
+labels: ["detector", "new-surface"]
+body:
+  - type: input
+    id: tool
+    attributes:
+      label: Tool or config surface
+      description: Example: Codex, Cursor, Windsurf, Gemini CLI, AGENTS.md, MCP server config.
+    validations:
+      required: true
+  - type: textarea
+    id: file-paths
+    attributes:
+      label: File paths
+      description: List the config paths PolicyMesh should inspect.
+    validations:
+      required: true
+  - type: textarea
+    id: risky-conflicts
+    attributes:
+      label: Risky conflict examples
+      description: Describe cross-surface disagreements that should produce findings.
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Affected scope
+      description: Help prioritize whether this matters for one repo or repeated team workflows.
+      options:
+        - One repository
+        - Multiple repositories
+        - Organization-wide pattern
+        - Not sure yet
+    validations:
+      required: true
+  - type: dropdown
+    id: review-surface
+    attributes:
+      label: Review surface
+      description: Where would a PolicyMesh warning be useful?
+      options:
+        - Pull request check
+        - Local CLI
+        - Both pull request and local CLI
+        - Not sure yet
+    validations:
+      required: true
