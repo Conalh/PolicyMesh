@@ -54,6 +54,7 @@ test('issue templates collect detector and team validation feedback', async () =
   assert.match(teamValidation, /Team workflow/);
   assert.match(teamValidation, /Paid-layer signal/);
   assert.match(readme, /team-validation\.yml/);
+  assert.match(readme, /issues\/5/);
 });
 
 test('README documents Action credibility and robustness signals', async () => {
