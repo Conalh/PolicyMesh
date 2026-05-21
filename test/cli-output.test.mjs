@@ -151,6 +151,27 @@ test('CLI reports malformed agent config instead of crashing', async () => {
   assert.match(report.findings[0].message, /Could not parse Cursor MCP config/);
 });
 
+test('CLI reports malformed Codex config instead of hiding the surface', async () => {
+  const repo = join(testDir, 'fixtures', 'malformed-codex');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'high');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 1);
+  assert.ok(report.effectiveUnion.includes('1 unreadable agent config'));
+  assert.equal(report.findings[0].kind, 'config_parse_error');
+  assert.equal(report.findings[0].file, '.codex/config.toml');
+  assert.equal(report.findings[0].line, 1);
+  assert.match(report.findings[0].message, /Could not parse Codex config/);
+  assert.match(report.findings[0].recommendation, /TOML/);
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 

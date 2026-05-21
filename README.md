@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.4
+      - uses: Conalh/PolicyMesh@v0.1.5
         with:
           fail-on: none
 ```
@@ -130,7 +130,7 @@ PolicyMesh v0 detects:
 - Codex network access enabled alongside other agent surfaces.
 - Codex trusted project settings combined with risky MCP configuration.
 - Codex sandbox posture gaps relative to Claude deny rules.
-- Malformed JSON agent config files that would otherwise hide a policy surface.
+- Malformed JSON and Codex TOML agent config files that would otherwise hide a policy surface.
 
 PolicyMesh parses VS Code and Cursor configs as JSONC — `//` line comments, `/* */` block comments, and trailing commas are all accepted, so the audit doesn't false-fail on real-world editor output. `isBroadAllow` distinguishes scoped grants like `WebFetch(domain:example.com)` and `mcp__github__get_issue` from bare or wildcarded grants; narrow grants are not flagged.
 
