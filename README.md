@@ -98,7 +98,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.0
+      - uses: Conalh/PolicyMesh@v0.1.1
         with:
           fail-on: none
 ```

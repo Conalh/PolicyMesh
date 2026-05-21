@@ -7,6 +7,17 @@ import { dirname, join } from 'node:path';
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(testDir, '..');
 
+test('release metadata is prepared for v0.1.1 Action users', async () => {
+  const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+  const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
+  const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
+
+  assert.equal(packageJson.version, '0.1.1');
+  assert.equal(packageLock.version, '0.1.1');
+  assert.equal(packageLock.packages[''].version, '0.1.1');
+  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.1/);
+});
+
 test('action.yml declares audit inputs and outputs', async () => {
   const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
 
