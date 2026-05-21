@@ -25,6 +25,7 @@ interface McpParseResult {
 
 interface McpServersReadResult {
   servers: McpServer[];
+  configured: boolean;
   finding?: Finding;
 }
 
@@ -33,11 +34,11 @@ export async function parseMcpSurfaces(root: string): Promise<McpParseResult> {
   const findings: Finding[] = [];
 
   for (const config of MCP_CONFIGS) {
-    const { servers, finding } = await readMcpServers(root, config);
+    const { servers, configured, finding } = await readMcpServers(root, config);
     if (finding) {
       findings.push(finding);
     }
-    if (servers.length > 0) {
+    if (configured) {
       surfaces.push({
         surfaceId: config.surfaceId,
         file: config.path,
@@ -55,19 +56,20 @@ async function readMcpServers(
 ): Promise<McpServersReadResult> {
   const source = await readJsonObjectWithSource(configPath(root, config.path));
   if (!source.text.trim()) {
-    return { servers: [] };
+    return { servers: [], configured: false };
   }
 
   if (source.parseError) {
     return {
       servers: [],
+      configured: false,
       finding: configParseFinding(config.path, config.surfaceId, source.parseError)
     };
   }
 
   const rawServers = readServerMap(source.json, config.serverKeys);
   if (!isRecord(rawServers)) {
-    return { servers: [] };
+    return { servers: [], configured: false };
   }
 
   const servers: McpServer[] = [];
@@ -100,7 +102,7 @@ async function readMcpServers(
     });
   }
 
-  return { servers };
+  return { servers, configured: true };
 }
 
 function readServerMap(json: Record<string, unknown>, serverKeys: readonly string[]): unknown {
