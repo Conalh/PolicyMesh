@@ -26,6 +26,18 @@ test('CLI aligned fixture returns none rating', async () => {
   assert.ok(report.matrix.length > 0);
 });
 
+test('CLI repository root self-audit returns none rating', async () => {
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', packageRoot, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'none');
+  assert.equal(report.findingCount, 0);
+});
+
 test('CLI conflicted fixture returns high rating with expected kinds', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 

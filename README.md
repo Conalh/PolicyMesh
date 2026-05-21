@@ -47,6 +47,8 @@ That PR intentionally adds:
 
 PolicyMesh reports `HIGH` policy conflicts and emits GitHub warning annotations on the conflicting config lines.
 
+The default branch does not keep those intentionally conflicted root configs checked in. The demo PR preserves the PR-visible annotation proof, and the fixture below keeps the scenario reproducible locally without making every future pull request noisy.
+
 Run PolicyMesh locally against the conflicted fixture:
 
 ```powershell
@@ -98,7 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.0
+      - uses: Conalh/PolicyMesh@v0.1.1
         with:
           fail-on: none
 ```
