@@ -25,6 +25,17 @@ It is intentionally not a hosted scanner. The Action reads the checked-out repos
 
 ## Demo
 
+Live demo PR: [Demo: cross-surface agent policy conflicts](https://github.com/Conalh/PolicyMesh/pull/1)
+
+That PR intentionally adds:
+
+- The same `github` MCP server with different launch commands in `.mcp.json` and `.cursor/mcp.json`.
+- An unpinned `@latest` MCP package in Cursor config.
+- Broad Claude allow rules with a narrow `.env` deny and no `PreToolUse` hook.
+- Codex network access and trusted project settings alongside the risky MCP setup.
+
+PolicyMesh reports `HIGH` policy conflicts and emits GitHub warning annotations on the conflicting config lines.
+
 Run PolicyMesh locally against the conflicted fixture:
 
 ```powershell
