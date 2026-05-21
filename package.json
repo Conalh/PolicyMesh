@@ -3,6 +3,25 @@
   "version": "0.1.3",
   "description": "Cross-surface AI agent policy consistency review.",
   "type": "module",
+  "keywords": [
+    "ai-agents",
+    "github-action",
+    "policy-as-code",
+    "mcp",
+    "claude",
+    "cursor",
+    "codex",
+    "vscode",
+    "codeium"
+  ],
+  "homepage": "https://github.com/Conalh/PolicyMesh#readme",
+  "bugs": {
+    "url": "https://github.com/Conalh/PolicyMesh/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Conalh/PolicyMesh.git"
+  },
   "bin": {
     "policymesh": "./dist/index.js"
   },

@@ -18,6 +18,30 @@ test('release metadata is prepared for v0.1.3 Action users', async () => {
   assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.3/);
 });
 
+test('package metadata supports OSS discovery', async () => {
+  const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+
+  assert.deepEqual(packageJson.repository, {
+    type: 'git',
+    url: 'git+https://github.com/Conalh/PolicyMesh.git'
+  });
+  assert.deepEqual(packageJson.bugs, {
+    url: 'https://github.com/Conalh/PolicyMesh/issues'
+  });
+  assert.equal(packageJson.homepage, 'https://github.com/Conalh/PolicyMesh#readme');
+  assert.deepEqual(packageJson.keywords, [
+    'ai-agents',
+    'github-action',
+    'policy-as-code',
+    'mcp',
+    'claude',
+    'cursor',
+    'codex',
+    'vscode',
+    'codeium'
+  ]);
+});
+
 test('action.yml declares audit inputs and outputs', async () => {
   const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
 
