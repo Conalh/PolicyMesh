@@ -23,6 +23,17 @@ It is intentionally not a hosted scanner. The Action reads the checked-out repos
 
 **ScopeTrail catches permission drift in PRs. PolicyMesh catches contradictory agent policies in the repo.**
 
+## Part of an AI-agent governance suite
+
+Four tools mapping orthogonal failure modes of AI-agent deployment:
+
+- **[ScopeTrail](https://github.com/Conalh/ScopeTrail)** — config drift over time (PR-level).
+- **PolicyMesh** *(this repo)* — policy contradictions across agent surfaces.
+- **[CapabilityEcho](https://github.com/Conalh/CapabilityEcho)** — capability drift via code, not config.
+- **[TaskBound](https://github.com/Conalh/TaskBound)** — scope creep after the agent runs.
+
+The first three are preventive (static analysis of config and code). TaskBound is detective (behavioral, comparing stated intent vs. actual diff).
+
 ## Demo
 
 Live demo PR: [Demo: cross-surface agent policy conflicts](https://github.com/Conalh/PolicyMesh/pull/1)
