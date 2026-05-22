@@ -7,7 +7,8 @@ export type SurfaceId =
   | 'codeium_mcp'
   | 'windsurf_mcp'
   | 'claude'
-  | 'codex';
+  | 'codex'
+  | 'aider';
 
 export interface Finding {
   kind: string;
@@ -80,10 +81,21 @@ export interface CodexPolicy {
   trustLine?: number;
 }
 
+export interface AiderPolicy {
+  surfaceId: 'aider';
+  file: string;
+  model?: string;
+  autoCommits?: boolean;
+  dangerouslyAllowNonGit?: boolean;
+  dangerouslyAllowNonGitLine?: number;
+  autoAcceptArchitect?: boolean;
+}
+
 export interface RepoPolicies {
   mcpSurfaces: McpSurface[];
   claude?: ClaudePolicy;
   codex?: CodexPolicy;
+  aider?: AiderPolicy;
   parseFindings?: Finding[];
 }
 

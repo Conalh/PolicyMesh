@@ -540,6 +540,51 @@ test('CLI reports MCP servers referencing missing local scripts', async () => {
   assert.equal(scriptFindings.some((f) => f.subject === 'package-tool'), false);
 });
 
+test('CLI reports Aider dangerously-allow-non-git as a high-severity finding', async () => {
+  const repo = join(testDir, 'fixtures', 'aider-dangerous-non-git');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'high');
+  assert.equal(report.surfaceCount, 1);
+  const aiderFindings = report.findings.filter(
+    (finding) => finding.kind === 'policy_mesh.aider_dangerous_allow_non_git'
+  );
+  assert.equal(aiderFindings.length, 1);
+  assert.equal(aiderFindings[0].severity, 'high');
+  assert.equal(aiderFindings[0].file, '.aider.conf.yml');
+  assert.equal(aiderFindings[0].line, 4);
+  assert.deepEqual(aiderFindings[0].surfaces, ['aider']);
+
+  // Matrix should expose Aider settings without leaking model strings into Codex columns etc.
+  const modelRow = report.matrix.find((row) => row.capability === 'Aider model');
+  assert.ok(modelRow);
+  assert.equal(modelRow.values.aider, 'claude-3-5-sonnet');
+});
+
+test('CLI does not flag Aider when dangerously-allow-non-git is false', async () => {
+  const repo = join(testDir, 'fixtures', 'aider-safe');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'none');
+  assert.equal(report.surfaceCount, 1);
+  assert.equal(
+    report.findings.some((f) => f.kind === 'policy_mesh.aider_dangerous_allow_non_git'),
+    false
+  );
+});
+
 test('CLI reports MCP servers launching via privileged commands', async () => {
   const repo = join(testDir, 'fixtures', 'mcp-privileged-command');
 

@@ -8,7 +8,8 @@ const SURFACE_NAMES: Record<SurfaceId, string> = {
   codeium_mcp: 'Codeium MCP',
   windsurf_mcp: 'Windsurf MCP',
   claude: 'Claude',
-  codex: 'Codex'
+  codex: 'Codex',
+  aider: 'Aider'
 };
 
 export function configParseFinding(file: string, surface: SurfaceId, parseError: JsonParseError): Finding {

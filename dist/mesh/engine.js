@@ -17,9 +17,26 @@ export function runMeshRules(policies) {
         ...detectClaudeBroadAllowNoGuard(policies),
         ...detectCodexNetworkWithoutReview(policies),
         ...detectCodexTrustedWithRiskyMcp(policies),
-        ...detectCodexClaudePostureGap(policies)
+        ...detectCodexClaudePostureGap(policies),
+        ...detectAiderDangerousAllowNonGit(policies)
     ];
     return findings;
+}
+function detectAiderDangerousAllowNonGit(policies) {
+    const aider = policies.aider;
+    if (!aider?.dangerouslyAllowNonGit) {
+        return [];
+    }
+    return [{
+            kind: 'policy_mesh.aider_dangerous_allow_non_git',
+            severity: 'high',
+            file: aider.file,
+            line: aider.dangerouslyAllowNonGitLine,
+            subject: 'dangerously-allow-non-git',
+            message: 'Aider is configured to operate outside a git repository, bypassing the safety guarantee that all edits land as reviewable commits.',
+            recommendation: 'Remove `dangerously-allow-non-git: true` and run Aider inside a git-tracked working directory so changes remain auditable.',
+            surfaces: ['aider']
+        }];
 }
 function detectHardcodedSecrets(policies) {
     const findings = [];
@@ -454,6 +471,12 @@ export function buildEffectiveUnion(policies) {
     if (policies.codex?.sandbox) {
         union.push(`Codex sandbox: ${policies.codex.sandbox}`);
     }
+    if (policies.aider?.dangerouslyAllowNonGit) {
+        union.push('Aider non-git operation allowed');
+    }
+    if (policies.aider?.autoCommits) {
+        union.push('Aider auto-commits enabled');
+    }
     const parseFindingCount = policies.parseFindings?.length ?? 0;
     if (parseFindingCount > 0) {
         union.push(`${parseFindingCount} unreadable agent config${parseFindingCount === 1 ? '' : 's'}`);
@@ -516,6 +539,26 @@ export function buildSurfaceMatrix(policies) {
             rows.push({
                 capability: 'Codex trust',
                 values: { codex: policies.codex.trusted ? 'trusted' : 'untrusted' }
+            });
+        }
+    }
+    if (policies.aider) {
+        if (policies.aider.model) {
+            rows.push({
+                capability: 'Aider model',
+                values: { aider: policies.aider.model }
+            });
+        }
+        if (policies.aider.autoCommits !== undefined) {
+            rows.push({
+                capability: 'Aider auto-commits',
+                values: { aider: policies.aider.autoCommits ? 'enabled' : 'disabled' }
+            });
+        }
+        if (policies.aider.dangerouslyAllowNonGit !== undefined) {
+            rows.push({
+                capability: 'Aider non-git',
+                values: { aider: policies.aider.dangerouslyAllowNonGit ? 'allowed' : 'denied' }
             });
         }
     }
@@ -602,7 +645,8 @@ function surfaceLabel(surface) {
         codeium_mcp: 'Codeium MCP',
         windsurf_mcp: 'Windsurf MCP',
         claude: 'Claude',
-        codex: 'Codex'
+        codex: 'Codex',
+        aider: 'Aider'
     };
     return labels[surface];
 }

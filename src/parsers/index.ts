@@ -1,20 +1,23 @@
 import { parseClaudePolicy } from './claude.js';
 import { parseCodexPolicy } from './codex.js';
 import { parseMcpSurfaces } from './mcp.js';
+import { parseAiderPolicy } from './aider.js';
 import type { RepoPolicies } from '../types.js';
 
 export async function parseRepoPolicies(root: string): Promise<RepoPolicies> {
-  const [mcp, claude, codex] = await Promise.all([
+  const [mcp, claude, codex, aider] = await Promise.all([
     parseMcpSurfaces(root),
     parseClaudePolicy(root),
-    parseCodexPolicy(root)
+    parseCodexPolicy(root),
+    parseAiderPolicy(root)
   ]);
 
   return {
     mcpSurfaces: codex.mcpSurface ? [...mcp.surfaces, codex.mcpSurface] : mcp.surfaces,
     claude: claude.policy,
     codex: codex.policy,
-    parseFindings: [...mcp.findings, ...claude.findings, ...codex.findings]
+    aider: aider.policy,
+    parseFindings: [...mcp.findings, ...claude.findings, ...codex.findings, ...aider.findings]
   };
 }
 
@@ -25,6 +28,9 @@ export function countConfiguredSurfaces(policies: RepoPolicies): number {
   }
   if (policies.codex) {
     surfaces.add('codex');
+  }
+  if (policies.aider) {
+    surfaces.add('aider');
   }
   for (const finding of policies.parseFindings ?? []) {
     for (const surface of finding.surfaces) {

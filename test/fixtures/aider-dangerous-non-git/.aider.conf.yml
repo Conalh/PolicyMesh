@@ -1,0 +1,4 @@
+# Aider configuration with the dangerous escape hatch enabled.
+model: claude-3-5-sonnet
+auto-commits: true
+dangerously-allow-non-git: true

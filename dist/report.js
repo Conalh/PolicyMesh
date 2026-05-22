@@ -88,7 +88,8 @@ const SURFACE_COLUMNS = [
     'codeium_mcp',
     'windsurf_mcp',
     'claude',
-    'codex'
+    'codex',
+    'aider'
 ];
 const SURFACE_LABELS = {
     root_mcp: 'Root MCP',
@@ -97,7 +98,8 @@ const SURFACE_LABELS = {
     codeium_mcp: 'Codeium MCP',
     windsurf_mcp: 'Windsurf MCP',
     claude: 'Claude',
-    codex: 'Codex'
+    codex: 'Codex',
+    aider: 'Aider'
 };
 function formatSurface(surface) {
     return SURFACE_LABELS[surface];

@@ -5,7 +5,8 @@ const SURFACE_NAMES = {
     codeium_mcp: 'Codeium MCP',
     windsurf_mcp: 'Windsurf MCP',
     claude: 'Claude',
-    codex: 'Codex'
+    codex: 'Codex',
+    aider: 'Aider'
 };
 export function configParseFinding(file, surface, parseError) {
     const syntax = surface === 'codex' ? 'TOML' : 'JSON';
