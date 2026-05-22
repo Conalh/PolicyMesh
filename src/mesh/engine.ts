@@ -6,6 +6,7 @@ export function runMeshRules(policies: RepoPolicies): Finding[] {
   const findings: Finding[] = [
     ...detectMcpCommandMismatch(policies),
     ...detectMcpServerMissing(policies),
+    ...detectMcpEnabledMismatch(policies),
     ...detectMcpEnvMismatch(policies),
     ...detectMcpUnpinned(policies),
     ...detectClaudeMcpGrantMissingServer(policies),
@@ -119,6 +120,41 @@ function detectMcpServerMissing(policies: RepoPolicies): Finding[] {
       message: `MCP server "${name}" is defined in ${formatSurfaceList(uniqueSurfaces(servers.map((s) => s.surfaceId)))} but missing from ${formatSurfaceList(missing)}.`,
       recommendation: 'Align MCP server definitions across all MCP config files or document why a surface intentionally omits the server.',
       surfaces: uniqueSurfaces([...present, ...missing])
+    });
+  }
+
+  return findings;
+}
+
+function detectMcpEnabledMismatch(policies: RepoPolicies): Finding[] {
+  const findings: Finding[] = [];
+  const byName = groupMcpServersByName(policies);
+
+  for (const [name, servers] of byName) {
+    if (servers.length < 2) {
+      continue;
+    }
+
+    const states = new Set(servers.map((server) => server.enabled));
+    if (states.size <= 1) {
+      continue;
+    }
+
+    const primary = servers[0];
+    findings.push({
+      kind: 'mcp_enabled_mismatch',
+      severity: 'medium',
+      file: primary.file,
+      line: primary.line,
+      locations: servers.map((server) => ({
+        file: server.file,
+        line: server.line,
+        surface: server.surfaceId
+      })),
+      subject: name,
+      message: `MCP server "${name}" is ${summarizeEnabledStates(servers)}.`,
+      recommendation: 'Align MCP server enabled/disabled state across surfaces, or rename/document surfaces that intentionally expose different tool access.',
+      surfaces: uniqueSurfaces(servers.map((server) => server.surfaceId))
     });
   }
 
@@ -501,6 +537,12 @@ function summarizeEnvKeys(servers: McpServer[]): string {
       const keys = uniqueSorted(Object.keys(server.env));
       return `${server.surfaceId} uses ${keys.length > 0 ? keys.join(', ') : 'no env variables'}`;
     })
+    .join('; ');
+}
+
+function summarizeEnabledStates(servers: McpServer[]): string {
+  return servers
+    .map((server) => `${server.enabled ? 'enabled' : 'disabled'} in ${server.surfaceId}`)
     .join('; ');
 }
 
