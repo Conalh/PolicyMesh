@@ -103,6 +103,7 @@ function detectMcpServerMissing(policies: RepoPolicies): Finding[] {
 
   const byName = groupMcpServersByName(policies);
   const surfaceIds = policies.mcpSurfaces.map((s) => s.surfaceId);
+  const surfaceById = new Map(policies.mcpSurfaces.map((surface) => [surface.surfaceId, surface]));
 
   for (const [name, servers] of byName) {
     const present = new Set(servers.map((s) => s.surfaceId));
@@ -117,6 +118,17 @@ function detectMcpServerMissing(policies: RepoPolicies): Finding[] {
       severity: 'low',
       file: primary.file,
       line: primary.line,
+      locations: [
+        ...servers.map((server) => ({
+          file: server.file,
+          line: server.line,
+          surface: server.surfaceId
+        })),
+        ...missing.map((surfaceId) => ({
+          file: surfaceById.get(surfaceId)?.file ?? primary.file,
+          surface: surfaceId
+        }))
+      ],
       subject: name,
       message: `MCP server "${name}" is defined in ${formatSurfaceList(uniqueSurfaces(servers.map((s) => s.surfaceId)))} but missing from ${formatSurfaceList(missing)}.`,
       recommendation: 'Align MCP server definitions across all MCP config files or document why a surface intentionally omits the server.',

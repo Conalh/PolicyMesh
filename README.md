@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.11
+      - uses: Conalh/PolicyMesh@v0.1.12
         with:
           fail-on: none
 ```
@@ -109,6 +109,7 @@ jobs:
 Unlike drift scanners, PolicyMesh audits the checked-out snapshot only. **No `fetch-depth: 0` is required.**
 
 The action uploads nothing by default. It writes a Markdown report to the GitHub Actions step summary and emits PR-visible warning annotations for each finding.
+Missing-server findings emit annotations on configured surfaces that are missing MCP servers, not only on the surface where the server is defined.
 
 Start with `fail-on: none` so PolicyMesh is advisory while you tune policy. Raise it to `high` or `critical` once the findings are trusted.
 

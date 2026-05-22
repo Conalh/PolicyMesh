@@ -410,3 +410,22 @@ test('CLI emits GitHub warning annotations', async () => {
     ]
   );
 });
+
+test('CLI emits GitHub annotations for configured surfaces missing MCP servers', async () => {
+  const repo = join(testDir, 'fixtures', 'empty-mcp-surface');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'github'],
+    { cwd: packageRoot }
+  );
+
+  const missingAnnotations = stdout
+    .split('\n')
+    .filter((line) => line.includes('missing from cursor_mcp'));
+
+  assert.deepEqual(
+    missingAnnotations.map((line) => /^::warning file=([^,]+)/.exec(line)?.[1]).sort(),
+    ['.cursor/mcp.json', '.mcp.json']
+  );
+});
