@@ -162,6 +162,7 @@ If your team uses another agent config surface, open a
 If your team is testing PolicyMesh across multiple repositories, needs org-level
 policy review, shared baselines, exception ownership, or cross-repo reports, open a
 [team validation signal](https://github.com/Conalh/PolicyMesh/issues/new?template=team-validation.yml).
+For a concrete multi-repo trial path, use the [team pilot guide](docs/TEAM_PILOT.md).
 The paid-layer validation tracker is
 [issue #5](https://github.com/Conalh/PolicyMesh/issues/5); hosted SaaS work should wait for repeated team signals there.
 
