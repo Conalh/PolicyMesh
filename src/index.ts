@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { stat } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditRepo } from './audit.js';
 import { renderReport } from './report.js';
@@ -37,7 +38,9 @@ async function runAudit(argv: string[]): Promise<number> {
   }
 
   const report = await auditRepo(parsed.repo);
-  process.stdout.write(renderReport(report, parsed.format));
+  process.stdout.write(renderReport(report, parsed.format, {
+    githubAnnotationPathPrefix: githubAnnotationPathPrefix(parsed.repo)
+  }));
   return 0;
 }
 
@@ -75,6 +78,11 @@ function parseAuditArgs(argv: string[]): ParsedAuditArgs {
 
 function isReportFormat(value: string | undefined): value is ReportFormat {
   return value === 'text' || value === 'markdown' || value === 'json' || value === 'github';
+}
+
+function githubAnnotationPathPrefix(repo: string): string | undefined {
+  const prefix = relative(process.cwd(), resolve(repo));
+  return prefix && prefix !== '.' && !prefix.startsWith('..') ? prefix : undefined;
 }
 
 async function validateRepoPath(repo: string): Promise<string | undefined> {

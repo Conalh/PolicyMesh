@@ -430,11 +430,11 @@ test('CLI emits GitHub warning annotations', async () => {
   assert.deepEqual(
     mismatchAnnotations.map((line) => /^::warning file=([^,]+)/.exec(line)?.[1]).sort(),
     [
-      '.codeium/windsurf/mcp_config.json',
-      '.codex/config.toml',
-      '.cursor/mcp.json',
-      '.mcp.json',
-      '.vscode/mcp.json'
+      'test/fixtures/conflicted/.codeium/windsurf/mcp_config.json',
+      'test/fixtures/conflicted/.codex/config.toml',
+      'test/fixtures/conflicted/.cursor/mcp.json',
+      'test/fixtures/conflicted/.mcp.json',
+      'test/fixtures/conflicted/.vscode/mcp.json'
     ]
   );
 });
@@ -454,6 +454,9 @@ test('CLI emits GitHub annotations for configured surfaces missing MCP servers',
 
   assert.deepEqual(
     missingAnnotations.map((line) => /^::warning file=([^,]+)/.exec(line)?.[1]).sort(),
-    ['.cursor/mcp.json', '.mcp.json']
+    [
+      'test/fixtures/empty-mcp-surface/.cursor/mcp.json',
+      'test/fixtures/empty-mcp-surface/.mcp.json'
+    ]
   );
 });

@@ -104,7 +104,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.13
+      - uses: Conalh/PolicyMesh@v0.1.14
         with:
           fail-on: none
 ```
@@ -113,6 +113,7 @@ Unlike drift scanners, PolicyMesh audits the checked-out snapshot only. **No `fe
 
 The action uploads nothing by default. It writes a Markdown report to the GitHub Actions step summary and emits PR-visible warning annotations for each finding.
 Missing-server findings emit annotations on configured surfaces that are missing MCP servers, not only on the surface where the server is defined.
+For subdirectory audits using the `repo` input, GitHub annotation file paths are prefixed back to the workflow workspace so warnings point at the checked-out files.
 
 Start with `fail-on: none` so PolicyMesh is advisory while you tune policy. Raise it to `high` or `critical` once the findings are trusted.
 
