@@ -1,6 +1,6 @@
 {
   "name": "policymesh",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Cross-surface AI agent policy consistency review.",
   "type": "module",
   "keywords": [
