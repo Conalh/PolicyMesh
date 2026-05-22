@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { normalizeMcpCommand } from 'agent-gov-core';
 import { configPath } from '../discovery.js';
 import { isUnpinnedCommand, serverCommand } from './mcp.js';
 import { configParseFinding } from './errors.js';
@@ -362,6 +363,11 @@ function buildCodexMcpServers(drafts: Map<string, CodexMcpServerDraft>): McpServ
     servers.push({
       name,
       command,
+      canonicalIdentity: normalizeMcpCommand({
+        command: draft.command,
+        args: draft.args,
+        url: draft.url ?? draft.serverUrl,
+      }),
       enabled: draft.enabled !== false,
       env: draft.env,
       headers: draft.headers,

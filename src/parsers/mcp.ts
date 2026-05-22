@@ -1,3 +1,4 @@
+import { normalizeMcpCommand } from 'agent-gov-core';
 import { configPath, isRecord, lineOfJsonKey, readJsonObjectWithSource } from '../discovery.js';
 import { configParseFinding } from './errors.js';
 import type { Finding, McpServer, McpSurface, SurfaceId } from '../types.js';
@@ -104,6 +105,11 @@ async function readMcpServers(
     servers.push({
       name,
       command,
+      canonicalIdentity: normalizeMcpCommand({
+        command: raw.command,
+        args: raw.args,
+        url: raw.url ?? raw.serverUrl,
+      }),
       enabled: serverEnabled(raw),
       env: raw.env ?? {},
       headers: raw.headers ?? {},

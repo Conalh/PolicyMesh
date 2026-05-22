@@ -29,7 +29,18 @@ export interface FindingLocation {
 
 export interface McpServer {
   name: string;
+  /** Human-readable launch string. Used in messages/matrix rows only. */
   command: string;
+  /**
+   * Canonical identity of the launch command from agent-gov-core's
+   * normalizeMcpCommand, computed *without* env. Two servers with the same
+   * canonicalIdentity launch the same workload, even if their raw command
+   * strings differ in neutral ways (flag reordering, `-y`/`--yes`,
+   * `.cmd`/`.exe` suffix). The mismatch detector groups by this field,
+   * not by `command`. Env differences are reported separately by
+   * mcp_env_mismatch and intentionally excluded here.
+   */
+  canonicalIdentity: string;
   enabled: boolean;
   env: Record<string, string>;
   headers: Record<string, string>;
