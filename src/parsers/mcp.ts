@@ -9,7 +9,7 @@ const MCP_CONFIGS = [
   { surfaceId: 'windsurf_mcp' as const, path: '.codeium/windsurf/mcp_config.json', serverKeys: ['mcpServers'] }
 ] as const;
 
-interface McpServerRaw {
+export interface McpServerRaw {
   line?: number;
   sourceText?: string;
   command?: string;

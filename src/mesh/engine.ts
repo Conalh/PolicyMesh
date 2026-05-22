@@ -632,7 +632,9 @@ function formatSurfaceList(surfaces: SurfaceId[]): string {
 }
 
 function listOtherAgentSurfaces(policies: RepoPolicies): SurfaceId[] {
-  const surfaces: SurfaceId[] = policies.mcpSurfaces.map((surface) => surface.surfaceId);
+  const surfaces: SurfaceId[] = policies.mcpSurfaces
+    .map((surface) => surface.surfaceId)
+    .filter((surface) => surface !== 'codex');
   if (policies.claude) {
     surfaces.push('claude');
   }

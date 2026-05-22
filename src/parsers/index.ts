@@ -11,7 +11,7 @@ export async function parseRepoPolicies(root: string): Promise<RepoPolicies> {
   ]);
 
   return {
-    mcpSurfaces: mcp.surfaces,
+    mcpSurfaces: codex.mcpSurface ? [...mcp.surfaces, codex.mcpSurface] : mcp.surfaces,
     claude: claude.policy,
     codex: codex.policy,
     parseFindings: [...mcp.findings, ...claude.findings, ...codex.findings]

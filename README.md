@@ -13,6 +13,7 @@ PolicyMesh is a free OSS CLI and GitHub Action that audits a repository for cont
 - `.cursor/mcp.json`
 - `.vscode/mcp.json`
 - `.codeium/windsurf/mcp_config.json`
+- Codex MCP tables in `.codex/config.toml`
 - `.claude/settings.json`
 - `.codex/config.toml`
 - Surface matrix, effective capability union, and conflict findings
@@ -101,7 +102,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.12
+      - uses: Conalh/PolicyMesh@v0.1.13
         with:
           fail-on: none
 ```
@@ -129,6 +130,7 @@ PolicyMesh v0 detects:
 - MCP server enabled/disabled drift across surfaces.
 - MCP server environment drift across surfaces without reporting secret values.
 - MCP remote header drift across surfaces without reporting secret values.
+- Codex MCP servers from `.codex/config.toml` in the same MCP mismatch, missing-server, enabled-state, env, and header checks.
 - Unpinned MCP launch commands such as `@latest`.
 - Claude broad allow rules overlapping with specific deny rules.
 - Broad Claude allow rules without a `PreToolUse` guard hook.
