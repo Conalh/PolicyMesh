@@ -337,6 +337,26 @@ test('CLI reports Codex MCP server command drift against root MCP config', async
   assert.ok(report.matrix.some((row) => row.capability === 'MCP: github' && row.values.codex?.includes('@modelcontextprotocol/server-github@2.0.0')));
 });
 
+test('CLI reports Codeium plugin MCP command drift against root MCP config', async () => {
+  const repo = join(testDir, 'fixtures', 'codeium-plugin-mcp-config');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'high');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'mcp_command_mismatch');
+  assert.equal(report.findings[0].subject, 'github');
+  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'codeium_mcp']);
+  assert.ok(report.findings[0].locations.some((location) => location.file === '.codeium/mcp_config.json' && location.surface === 'codeium_mcp'));
+  assert.ok(report.matrix.some((row) => row.capability === 'MCP: github' && row.values.codeium_mcp?.includes('@modelcontextprotocol/server-github@2.0.0')));
+});
+
 test('CLI reports only differing MCP header value keys without leaking values', async () => {
   const repo = join(testDir, 'fixtures', 'mcp-header-value-mismatch');
 
@@ -392,10 +412,10 @@ test('CLI emits Markdown with matrix and union summary', async () => {
   assert.match(stdout, /# PolicyMesh agent policy review: HIGH/);
   assert.match(stdout, /## Effective capability union/);
   assert.match(stdout, /## Surface matrix/);
-  assert.match(stdout, /\| Capability \| Root MCP \| Cursor MCP \| VS Code MCP \| Codeium\/Windsurf MCP \| Claude \| Codex \|/);
+  assert.match(stdout, /\| Capability \| Root MCP \| Cursor MCP \| VS Code MCP \| Codeium MCP \| Windsurf MCP \| Claude \| Codex \|/);
   assert.match(stdout, /MCP: github/);
   assert.match(stdout, /bash wildcards allowed \(Claude\)/);
-  assert.match(stdout, /Surfaces: Root MCP, Cursor MCP, VS Code MCP, Codeium\/Windsurf MCP/);
+  assert.match(stdout, /Surfaces: Root MCP, Cursor MCP, VS Code MCP, Windsurf MCP/);
 });
 
 test('CLI Markdown escapes table delimiters in matrix values', async () => {
@@ -427,7 +447,7 @@ test('CLI emits GitHub warning annotations', async () => {
   assert.match(stdout, /^::warning file=/m);
   assert.match(stdout, /different launch commands/);
   assert.match(stdout, /title=PolicyMesh high finding/);
-  assert.match(stdout, /Surfaces: Root MCP, Cursor MCP, VS Code MCP, Codeium\/Windsurf MCP/);
+  assert.match(stdout, /Surfaces: Root MCP, Cursor MCP, VS Code MCP, Windsurf MCP/);
 
   const mismatchAnnotations = stdout
     .split('\n')

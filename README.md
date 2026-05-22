@@ -12,6 +12,7 @@ PolicyMesh is a free OSS CLI and GitHub Action that audits a repository for cont
 - `.mcp.json`
 - `.cursor/mcp.json`
 - `.vscode/mcp.json`
+- `.codeium/mcp_config.json`
 - `.codeium/windsurf/mcp_config.json`
 - Codex MCP tables in `.codex/config.toml`
 - `.claude/settings.json`
@@ -62,7 +63,7 @@ node dist/index.js audit --repo test/fixtures/conflicted --format markdown
 The local fixture extends that proof with:
 
 - The same `github` MCP server with different launch commands in `.mcp.json` and `.cursor/mcp.json`.
-- VS Code and Codeium/Windsurf MCP configs participating in the same cross-surface mismatch.
+- VS Code and Windsurf MCP configs participating in the same cross-surface mismatch.
 - A Codex MCP table in `.codex/config.toml` participating in the same cross-surface mismatch.
 - An unpinned `@latest` MCP package in Cursor config.
 - Broad Claude allow rules with a narrow `.env` deny and no `PreToolUse` hook.
@@ -103,7 +104,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.17
+      - uses: Conalh/PolicyMesh@v0.1.18
         with:
           fail-on: none
 ```
@@ -132,6 +133,7 @@ PolicyMesh v0 detects:
 - MCP server enabled/disabled drift across surfaces.
 - MCP server environment drift across surfaces without reporting secret values.
 - MCP remote header drift across surfaces without reporting secret values.
+- Codeium MCP servers from `.codeium/mcp_config.json` and Windsurf MCP servers from `.codeium/windsurf/mcp_config.json` in the same MCP mismatch, missing-server, enabled-state, env, and header checks.
 - Codex MCP servers from `.codex/config.toml` in the same MCP mismatch, missing-server, enabled-state, env, and header checks.
 - Unpinned MCP launch commands such as `@latest`.
 - Claude broad allow rules overlapping with specific deny rules.

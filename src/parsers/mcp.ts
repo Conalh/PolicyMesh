@@ -6,6 +6,7 @@ const MCP_CONFIGS = [
   { surfaceId: 'root_mcp' as const, path: '.mcp.json', serverKeys: ['mcpServers'] },
   { surfaceId: 'cursor_mcp' as const, path: '.cursor/mcp.json', serverKeys: ['mcpServers', 'servers'] },
   { surfaceId: 'vscode_mcp' as const, path: '.vscode/mcp.json', serverKeys: ['servers', 'mcpServers'] },
+  { surfaceId: 'codeium_mcp' as const, path: '.codeium/mcp_config.json', serverKeys: ['mcpServers'] },
   { surfaceId: 'windsurf_mcp' as const, path: '.codeium/windsurf/mcp_config.json', serverKeys: ['mcpServers'] }
 ] as const;
 

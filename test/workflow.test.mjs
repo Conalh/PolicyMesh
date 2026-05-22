@@ -10,15 +10,15 @@ const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(testDir, '..');
 
-test('release metadata is prepared for v0.1.17 Action users', async () => {
+test('release metadata is prepared for v0.1.18 Action users', async () => {
   const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
   const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
 
-  assert.equal(packageJson.version, '0.1.17');
-  assert.equal(packageLock.version, '0.1.17');
-  assert.equal(packageLock.packages[''].version, '0.1.17');
-  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.17/);
+  assert.equal(packageJson.version, '0.1.18');
+  assert.equal(packageLock.version, '0.1.18');
+  assert.equal(packageLock.packages[''].version, '0.1.18');
+  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.18/);
 });
 
 test('package metadata supports OSS discovery', async () => {
@@ -41,7 +41,8 @@ test('package metadata supports OSS discovery', async () => {
     'cursor',
     'codex',
     'vscode',
-    'codeium'
+    'codeium',
+    'windsurf'
   ]);
 });
 
@@ -114,7 +115,9 @@ test('issue templates collect detector and team validation feedback', async () =
 test('README documents Action credibility and robustness signals', async () => {
   const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
 
-  assert.match(readme, /VS Code and Codeium\/Windsurf MCP configs/);
+  assert.match(readme, /VS Code and Windsurf MCP configs/);
+  assert.match(readme, /`\.codeium\/mcp_config\.json`/);
+  assert.match(readme, /`\.codeium\/windsurf\/mcp_config\.json`/);
   assert.match(readme, /configured MCP surfaces with empty server maps/);
   assert.match(readme, /MCP server enabled\/disabled drift across surfaces/);
   assert.match(readme, /MCP server environment drift across surfaces/);

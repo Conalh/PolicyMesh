@@ -1,6 +1,6 @@
 {
   "name": "policymesh",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "Cross-surface AI agent policy consistency review.",
   "type": "module",
   "keywords": [
@@ -12,7 +12,8 @@
     "cursor",
     "codex",
     "vscode",
-    "codeium"
+    "codeium",
+    "windsurf"
   ],
   "homepage": "https://github.com/Conalh/PolicyMesh#readme",
   "bugs": {
