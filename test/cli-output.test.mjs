@@ -219,7 +219,9 @@ test('CLI reports servers missing from configured but empty MCP surfaces', async
   assert.equal(report.findings[0].severity, 'low');
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'cursor_mcp']);
-  assert.match(report.findings[0].message, /missing from cursor_mcp/);
+  assert.match(report.findings[0].message, /defined in Root MCP/);
+  assert.match(report.findings[0].message, /missing from Cursor MCP/);
+  assert.doesNotMatch(report.findings[0].message, /root_mcp|cursor_mcp/);
 });
 
 test('CLI reports MCP server enabled-state drift across surfaces', async () => {
@@ -239,8 +241,9 @@ test('CLI reports MCP server enabled-state drift across surfaces', async () => {
   assert.equal(report.findings[0].severity, 'medium');
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'cursor_mcp']);
-  assert.match(report.findings[0].message, /enabled in root_mcp/);
-  assert.match(report.findings[0].message, /disabled in cursor_mcp/);
+  assert.match(report.findings[0].message, /enabled in Root MCP/);
+  assert.match(report.findings[0].message, /disabled in Cursor MCP/);
+  assert.doesNotMatch(report.findings[0].message, /root_mcp|cursor_mcp/);
 });
 
 test('CLI reports MCP server environment drift without leaking values', async () => {
@@ -261,8 +264,9 @@ test('CLI reports MCP server environment drift without leaking values', async ()
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'vscode_mcp']);
   assert.match(report.findings[0].message, /environment variable names differ/);
-  assert.match(report.findings[0].message, /GITHUB_TOKEN/);
-  assert.match(report.findings[0].message, /GH_TOKEN/);
+  assert.match(report.findings[0].message, /Root MCP uses GITHUB_TOKEN/);
+  assert.match(report.findings[0].message, /VS Code MCP uses GH_TOKEN/);
+  assert.doesNotMatch(report.findings[0].message, /root_mcp|vscode_mcp/);
   assert.doesNotMatch(stdout, /root-token-value/);
   assert.doesNotMatch(stdout, /vscode-token-value/);
 });
@@ -306,8 +310,9 @@ test('CLI reports MCP server header drift without leaking values', async () => {
   assert.equal(report.findings[0].subject, 'analytics');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'vscode_mcp']);
   assert.match(report.findings[0].message, /header names differ/);
-  assert.match(report.findings[0].message, /Authorization/);
-  assert.match(report.findings[0].message, /X-API-Key/);
+  assert.match(report.findings[0].message, /Root MCP uses Authorization/);
+  assert.match(report.findings[0].message, /VS Code MCP uses X-API-Key/);
+  assert.doesNotMatch(report.findings[0].message, /root_mcp|vscode_mcp/);
   assert.doesNotMatch(stdout, /root-header-secret/);
   assert.doesNotMatch(stdout, /vscode-header-secret/);
 });
@@ -450,7 +455,7 @@ test('CLI emits GitHub annotations for configured surfaces missing MCP servers',
 
   const missingAnnotations = stdout
     .split('\n')
-    .filter((line) => line.includes('missing from cursor_mcp'));
+    .filter((line) => line.includes('missing from Cursor MCP'));
 
   assert.deepEqual(
     missingAnnotations.map((line) => /^::warning file=([^,]+)/.exec(line)?.[1]).sort(),

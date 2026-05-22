@@ -10,15 +10,15 @@ const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(testDir, '..');
 
-test('release metadata is prepared for v0.1.16 Action users', async () => {
+test('release metadata is prepared for v0.1.17 Action users', async () => {
   const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
   const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
 
-  assert.equal(packageJson.version, '0.1.16');
-  assert.equal(packageLock.version, '0.1.16');
-  assert.equal(packageLock.packages[''].version, '0.1.16');
-  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.16/);
+  assert.equal(packageJson.version, '0.1.17');
+  assert.equal(packageLock.version, '0.1.17');
+  assert.equal(packageLock.packages[''].version, '0.1.17');
+  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.17/);
 });
 
 test('package metadata supports OSS discovery', async () => {
