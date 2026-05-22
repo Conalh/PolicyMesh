@@ -144,6 +144,7 @@ PolicyMesh v0 detects:
 - Codex sandbox posture gaps relative to Claude deny rules.
 - Hardcoded API credentials embedded in MCP launch commands, environment variable values, or headers (CRITICAL). The finding names the provider and the field it appeared in; the literal credential is never echoed in any output format.
 - MCP servers referencing local scripts (relative paths ending in `.js`, `.py`, `.sh`, etc.) that do not exist in the checked-out repository.
+- MCP servers launching via elevation utilities (`sudo`, `doas`, `pkexec`, `runas`, `gsudo`, etc.). Agents should run in user space, not as root.
 - Malformed JSON and Codex TOML agent config files that would otherwise hide a policy surface.
 
 PolicyMesh parses VS Code and Cursor configs as JSONC — `//` line comments, `/* */` block comments, and trailing commas are all accepted, so the audit doesn't false-fail on real-world editor output. `isBroadAllow` distinguishes scoped grants like `WebFetch(domain:example.com)` and `mcp__github__get_issue` from bare or wildcarded grants; narrow grants are not flagged.

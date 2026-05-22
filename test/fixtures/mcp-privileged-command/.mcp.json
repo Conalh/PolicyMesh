@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "needs-root": {
+      "command": "sudo",
+      "args": ["node", "./scripts/admin-tool.js"]
+    },
+    "user-space": {
+      "command": "node",
+      "args": ["./scripts/regular-tool.js"]
+    }
+  }
+}

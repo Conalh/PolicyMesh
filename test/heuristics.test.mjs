@@ -21,6 +21,10 @@ const localScriptsModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'mesh', 'local-scripts.js')).href
 );
 const { localScriptCandidate } = localScriptsModule;
+const privilegedModule = await import(
+  pathToFileURL(join(testDir, '..', 'dist', 'mesh', 'privileged.js')).href
+);
+const { privilegedToken } = privilegedModule;
 
 function makeFinding(overrides = {}) {
   return {
@@ -195,4 +199,27 @@ test('localScriptCandidate: absolute paths and URLs are ignored', () => {
     localScriptCandidate({ command: 'curl https://example.com/foo.js', args: ['https://example.com/foo.js'] }),
     undefined
   );
+});
+
+test('privilegedToken: detects elevation utilities as command first token', () => {
+  assert.equal(privilegedToken({ command: 'sudo node ./x.js', args: ['node', './x.js'] }), 'sudo');
+  assert.equal(privilegedToken({ command: 'doas node ./x.js', args: ['node', './x.js'] }), 'doas');
+  assert.equal(privilegedToken({ command: 'pkexec /opt/agent', args: ['/opt/agent'] }), 'pkexec');
+  assert.equal(privilegedToken({ command: 'runas /user:admin cmd', args: ['/user:admin', 'cmd'] }), 'runas');
+});
+
+test('privilegedToken: detects elevation via absolute path or extension', () => {
+  assert.equal(privilegedToken({ command: '/usr/bin/sudo node ./x.js', args: ['node', './x.js'] }), 'sudo');
+  assert.equal(privilegedToken({ command: 'C:\\Tools\\gsudo.exe node x.js', args: ['node', 'x.js'] }), 'gsudo');
+});
+
+test('privilegedToken: detects elevation in args[0] for wrapper invocations', () => {
+  assert.equal(privilegedToken({ command: 'env', args: ['sudo', 'node', './x.js'] }), 'sudo');
+});
+
+test('privilegedToken: normal commands are not flagged', () => {
+  assert.equal(privilegedToken({ command: 'node ./x.js', args: ['./x.js'] }), undefined);
+  assert.equal(privilegedToken({ command: 'npx -y @org/pkg', args: ['-y', '@org/pkg'] }), undefined);
+  // Substring matches must not trip the detector.
+  assert.equal(privilegedToken({ command: 'pseudo-tool', args: [] }), undefined);
 });

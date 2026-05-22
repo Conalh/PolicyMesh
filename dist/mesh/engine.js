@@ -1,6 +1,7 @@
 import { isBroadAllow, isSensitiveDeny } from '../parsers/claude.js';
 import { codexSandboxRank } from '../parsers/codex.js';
 import { matchSecret } from './secrets.js';
+import { detectPrivilegedCommands } from './privileged.js';
 export function runMeshRules(policies) {
     const findings = [
         ...detectMcpCommandMismatch(policies),
@@ -10,6 +11,7 @@ export function runMeshRules(policies) {
         ...detectMcpHeaderMismatch(policies),
         ...detectMcpUnpinned(policies),
         ...detectHardcodedSecrets(policies),
+        ...detectPrivilegedCommands(policies),
         ...detectClaudeMcpGrantMissingServer(policies),
         ...detectClaudeDenyAllowOverlap(policies),
         ...detectClaudeBroadAllowNoGuard(policies),

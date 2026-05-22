@@ -513,6 +513,27 @@ test('CLI reports MCP servers referencing missing local scripts', async () => {
   assert.equal(scriptFindings.some((f) => f.subject === 'package-tool'), false);
 });
 
+test('CLI reports MCP servers launching via privileged commands', async () => {
+  const repo = join(testDir, 'fixtures', 'mcp-privileged-command');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const privilegedFindings = report.findings.filter(
+    (finding) => finding.kind === 'policy_mesh.privileged_command'
+  );
+  assert.equal(privilegedFindings.length, 1);
+  assert.equal(privilegedFindings[0].severity, 'high');
+  assert.equal(privilegedFindings[0].subject, 'needs-root');
+  assert.match(privilegedFindings[0].message, /"sudo"/);
+  assert.deepEqual(privilegedFindings[0].surfaces, ['root_mcp']);
+  assert.equal(privilegedFindings.some((f) => f.subject === 'user-space'), false);
+});
+
 test('CLI reports malformed .policymesh-exceptions.json instead of crashing', async () => {
   const repo = join(testDir, 'fixtures', 'exceptions-malformed');
 
