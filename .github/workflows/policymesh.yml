@@ -12,6 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Build local Action bundle
+        run: |
+          npm ci
+          npm run build
+
       - uses: ./
         with:
           fail-on: none

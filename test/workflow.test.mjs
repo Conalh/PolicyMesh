@@ -52,6 +52,14 @@ test('action.yml declares audit inputs and outputs', async () => {
   assert.match(action, /audit --repo/);
 });
 
+test('published Action runs the bundled CLI without installing or rebuilding itself', async () => {
+  const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
+
+  assert.match(action, /node "\$GITHUB_ACTION_PATH\/dist\/index\.js" audit --repo/);
+  assert.doesNotMatch(action, /npm ci/);
+  assert.doesNotMatch(action, /npm run build/);
+});
+
 test('CI workflow builds and tests PolicyMesh', async () => {
   const workflow = await readFile(join(packageRoot, '.github', 'workflows', 'ci.yml'), 'utf8');
 
@@ -63,6 +71,8 @@ test('CI workflow builds and tests PolicyMesh', async () => {
 test('PolicyMesh workflow self-dogfoods the action', async () => {
   const workflow = await readFile(join(packageRoot, '.github', 'workflows', 'policymesh.yml'), 'utf8');
 
+  assert.match(workflow, /npm ci/);
+  assert.match(workflow, /npm run build/);
   assert.match(workflow, /uses: \.\//);
   assert.match(workflow, /fail-on: none/);
 });

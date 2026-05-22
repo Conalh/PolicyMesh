@@ -110,7 +110,7 @@ jobs:
 
 Unlike drift scanners, PolicyMesh audits the checked-out snapshot only. **No `fetch-depth: 0` is required.**
 
-The action uploads nothing by default. It writes a Markdown report to the GitHub Actions step summary and emits PR-visible warning annotations for each finding.
+The action runs the bundled CLI from the published tag and uploads nothing by default. It writes a Markdown report to the GitHub Actions step summary and emits PR-visible warning annotations for each finding.
 Missing-server findings emit annotations on configured surfaces that are missing MCP servers, not only on the surface where the server is defined.
 For subdirectory audits using the `repo` input, GitHub annotation file paths are prefixed back to the workflow workspace so warnings point at the checked-out files.
 

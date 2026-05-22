@@ -30,20 +30,6 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Install PolicyMesh
-      shell: bash
-      run: |
-        set -euo pipefail
-        cd "$GITHUB_ACTION_PATH"
-        npm ci
-
-    - name: Build PolicyMesh
-      shell: bash
-      run: |
-        set -euo pipefail
-        cd "$GITHUB_ACTION_PATH"
-        npm run build
-
     - name: Run PolicyMesh agent policy audit
       id: run
       shell: bash
