@@ -1,21 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(testDir, '..');
 
-test('release metadata is prepared for v0.1.15 Action users', async () => {
+test('release metadata is prepared for v0.1.16 Action users', async () => {
   const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
   const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
 
-  assert.equal(packageJson.version, '0.1.15');
-  assert.equal(packageLock.version, '0.1.15');
-  assert.equal(packageLock.packages[''].version, '0.1.15');
-  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.15/);
+  assert.equal(packageJson.version, '0.1.16');
+  assert.equal(packageLock.version, '0.1.16');
+  assert.equal(packageLock.packages[''].version, '0.1.16');
+  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.16/);
 });
 
 test('package metadata supports OSS discovery', async () => {
@@ -54,10 +57,20 @@ test('action.yml declares audit inputs and outputs', async () => {
 
 test('published Action runs the bundled CLI without installing or rebuilding itself', async () => {
   const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
+  const gitignore = await readFile(join(packageRoot, '.gitignore'), 'utf8');
+  const { stdout } = await execFileAsync(
+    'git',
+    ['ls-files', 'dist/index.js', 'dist/audit.js'],
+    { cwd: packageRoot }
+  );
+  const trackedDistFiles = stdout.trim().split(/\r?\n/).filter(Boolean);
 
   assert.match(action, /node "\$GITHUB_ACTION_PATH\/dist\/index\.js" audit --repo/);
   assert.doesNotMatch(action, /npm ci/);
   assert.doesNotMatch(action, /npm run build/);
+  assert.doesNotMatch(gitignore, /^dist\/\s*$/m);
+  assert.ok(trackedDistFiles.includes('dist/index.js'));
+  assert.ok(trackedDistFiles.includes('dist/audit.js'));
 });
 
 test('CI workflow builds and tests PolicyMesh', async () => {
