@@ -56,6 +56,20 @@ test('action.yml declares audit inputs and outputs', async () => {
   assert.match(action, /audit --repo/);
 });
 
+test('action.yml supports optional sticky PR summary comment via github-token input', async () => {
+  const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
+
+  // Input is declared and explicitly optional.
+  assert.match(action, /github-token:/);
+  assert.match(action, /required: false/);
+  // Sticky marker prevents duplicate comments per push.
+  assert.match(action, /policymesh:pr-summary/);
+  // Gated on pull_request event so non-PR runs are no-ops.
+  assert.match(action, /GITHUB_EVENT_NAME.*pull_request/);
+  // Uses gh api so we never embed a token in URLs.
+  assert.match(action, /GH_TOKEN="\$MESH_GITHUB_TOKEN" gh api/);
+});
+
 test('published Action runs the bundled CLI without installing or rebuilding itself', async () => {
   const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
   const gitignore = await readFile(join(packageRoot, '.gitignore'), 'utf8');
