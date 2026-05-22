@@ -4,6 +4,7 @@ import { stat } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditRepo } from './audit.js';
+import { auditRecursive } from './recursive.js';
 import { renderReport } from './report.js';
 import type { ReportFormat } from './types.js';
 
@@ -12,7 +13,7 @@ export type { MeshReport } from './types.js';
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   if (argv.length === 0 || argv.includes('--help') || argv.includes('-h')) {
-    process.stdout.write('Usage: policymesh audit --repo <path> [--format text|markdown|json|github]\n');
+    process.stdout.write(`${usage()}\n`);
     return 0;
   }
 
@@ -37,7 +38,9 @@ async function runAudit(argv: string[]): Promise<number> {
     return 2;
   }
 
-  const report = await auditRepo(parsed.repo);
+  const report = parsed.recursive
+    ? await auditRecursive(parsed.repo)
+    : await auditRepo(parsed.repo);
   process.stdout.write(renderReport(report, parsed.format, {
     githubAnnotationPathPrefix: githubAnnotationPathPrefix(parsed.repo)
   }));
@@ -45,12 +48,13 @@ async function runAudit(argv: string[]): Promise<number> {
 }
 
 type ParsedAuditArgs =
-  | { ok: true; repo: string; format: ReportFormat }
+  | { ok: true; repo: string; format: ReportFormat; recursive: boolean }
   | { ok: false; error: string };
 
 function parseAuditArgs(argv: string[]): ParsedAuditArgs {
   let repo = process.cwd();
   let format: ReportFormat = 'text';
+  let recursive = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -68,12 +72,14 @@ function parseAuditArgs(argv: string[]): ParsedAuditArgs {
       }
       format = value;
       index += 1;
+    } else if (arg === '--recursive' || arg === '-r') {
+      recursive = true;
     } else {
       return { ok: false, error: `Unknown argument: ${arg}` };
     }
   }
 
-  return { ok: true, repo, format };
+  return { ok: true, repo, format, recursive };
 }
 
 function isReportFormat(value: string | undefined): value is ReportFormat {
@@ -108,5 +114,5 @@ if (invokedPath) {
 }
 
 function usage(): string {
-  return 'Usage: policymesh audit --repo <path> [--format text|markdown|json|github]';
+  return 'Usage: policymesh audit --repo <path> [--format text|markdown|json|github] [--recursive]';
 }

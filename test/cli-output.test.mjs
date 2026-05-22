@@ -668,6 +668,50 @@ test('CLI text format produces no ANSI when stdout is not a TTY and FORCE_COLOR 
   assert.equal(stdout.includes(esc), false, 'no ANSI when stdout is piped and no FORCE_COLOR');
 });
 
+test('CLI --recursive discovers and audits sibling sub-projects independently', async () => {
+  const repo = join(testDir, 'fixtures', 'monorepo-basic');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--recursive', '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  // Only apps/api uses @latest, so only its finding should fire.
+  const unpinned = report.findings.filter(
+    (finding) => finding.kind === 'policy_mesh.mcp_unpinned'
+  );
+  assert.equal(unpinned.length, 1);
+  assert.match(unpinned[0].file, /apps[\/\\]api[\/\\]\.mcp\.json/);
+  assert.equal(report.rating, 'medium');
+
+  // Surface matrix rows are tagged with the sub-project path so identical
+  // capabilities from different projects do not collide.
+  const githubRows = report.matrix.filter((row) => row.capability.startsWith('MCP: github'));
+  assert.equal(githubRows.length, 2);
+  assert.ok(githubRows.some((row) => row.capability.includes('apps/web')));
+  assert.ok(githubRows.some((row) => row.capability.includes('apps/api')));
+
+  // Each sub-project contributes one MCP surface, so the count sums.
+  assert.equal(report.surfaceCount, 2);
+});
+
+test('CLI without --recursive on a monorepo audits only the root', async () => {
+  const repo = join(testDir, 'fixtures', 'monorepo-basic');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  // No root-level configs in the fixture, so the root audit finds nothing.
+  assert.equal(report.findingCount, 0);
+  assert.equal(report.surfaceCount, 0);
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 

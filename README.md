@@ -86,6 +86,18 @@ JSON output:
 node dist/index.js audit --repo test/fixtures/conflicted --format json
 ```
 
+### Monorepos
+
+Pass `--recursive` (or `-r`) to discover sub-projects with their own agent configs (e.g. `apps/web/.mcp.json`, `apps/api/.codex/config.toml`) and audit each independently:
+
+```powershell
+node dist/index.js audit --repo . --recursive --format markdown
+```
+
+PolicyMesh walks the tree (skipping `node_modules`, `.git`, `dist`, common build outputs, etc.), runs the standard audit per detected project, and merges the findings. Cross-surface rules fire **within** a project, not across projects — an MCP server named `github` defined the same way in two unrelated sub-projects is not a mismatch.
+
+Each project's findings keep their relative file paths (`apps/api/.mcp.json:5`) so CI annotations point to the right line, and the surface matrix tags every row with its sub-project for easy scanning.
+
 ## GitHub Action
 
 Add this workflow to review agent policy consistency on pull requests:

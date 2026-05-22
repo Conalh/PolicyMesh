@@ -3,11 +3,12 @@ import { stat } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditRepo } from './audit.js';
+import { auditRecursive } from './recursive.js';
 import { renderReport } from './report.js';
 export { auditRepo } from './audit.js';
 export async function main(argv = process.argv.slice(2)) {
     if (argv.length === 0 || argv.includes('--help') || argv.includes('-h')) {
-        process.stdout.write('Usage: policymesh audit --repo <path> [--format text|markdown|json|github]\n');
+        process.stdout.write(`${usage()}\n`);
         return 0;
     }
     if (argv[0] === 'audit') {
@@ -27,7 +28,9 @@ async function runAudit(argv) {
         process.stderr.write(`${repoError}\n`);
         return 2;
     }
-    const report = await auditRepo(parsed.repo);
+    const report = parsed.recursive
+        ? await auditRecursive(parsed.repo)
+        : await auditRepo(parsed.repo);
     process.stdout.write(renderReport(report, parsed.format, {
         githubAnnotationPathPrefix: githubAnnotationPathPrefix(parsed.repo)
     }));
@@ -36,6 +39,7 @@ async function runAudit(argv) {
 function parseAuditArgs(argv) {
     let repo = process.cwd();
     let format = 'text';
+    let recursive = false;
     for (let index = 0; index < argv.length; index += 1) {
         const arg = argv[index];
         const value = argv[index + 1];
@@ -53,11 +57,14 @@ function parseAuditArgs(argv) {
             format = value;
             index += 1;
         }
+        else if (arg === '--recursive' || arg === '-r') {
+            recursive = true;
+        }
         else {
             return { ok: false, error: `Unknown argument: ${arg}` };
         }
     }
-    return { ok: true, repo, format };
+    return { ok: true, repo, format, recursive };
 }
 function isReportFormat(value) {
     return value === 'text' || value === 'markdown' || value === 'json' || value === 'github';
@@ -86,5 +93,5 @@ if (invokedPath) {
     process.exitCode = await main();
 }
 function usage() {
-    return 'Usage: policymesh audit --repo <path> [--format text|markdown|json|github]';
+    return 'Usage: policymesh audit --repo <path> [--format text|markdown|json|github] [--recursive]';
 }
