@@ -38,19 +38,18 @@ ScopeTrail, PolicyMesh, and CapabilityEcho are preventive (static analysis of co
 
 ## Demo
 
-Live demo PR: [Demo: cross-surface agent policy conflicts](https://github.com/Conalh/PolicyMesh/pull/1)
+Original demo PR: [Demo: cross-surface agent policy conflicts](https://github.com/Conalh/PolicyMesh/pull/1)
 
-That PR intentionally adds:
+The original PR intentionally adds:
 
 - The same `github` MCP server with different launch commands in `.mcp.json` and `.cursor/mcp.json`.
-- A Codex MCP table in `.codex/config.toml` that disagrees with the other `github` MCP definitions.
 - An unpinned `@latest` MCP package in Cursor config.
 - Broad Claude allow rules with a narrow `.env` deny and no `PreToolUse` hook.
 - Codex network access and trusted project settings alongside the risky MCP setup.
 
-PolicyMesh reports `HIGH` policy conflicts and emits GitHub warning annotations on the conflicting config lines.
+PolicyMesh reports `HIGH` policy conflicts and emits GitHub warning annotations on those conflicting config lines.
 
-The default branch does not keep those intentionally conflicted root configs checked in. The demo PR preserves the PR-visible annotation proof, and the fixture below keeps the scenario reproducible locally without making every future pull request noisy.
+The default branch does not keep intentionally conflicted root configs checked in. The original PR preserves the PR-visible annotation proof, and the fixture below keeps the fuller current scenario reproducible locally without making every future pull request noisy.
 
 Run PolicyMesh locally against the conflicted fixture:
 
@@ -60,7 +59,7 @@ npm run build
 node dist/index.js audit --repo test/fixtures/conflicted --format markdown
 ```
 
-That fixture intentionally includes:
+The local fixture extends that proof with:
 
 - The same `github` MCP server with different launch commands in `.mcp.json` and `.cursor/mcp.json`.
 - VS Code and Codeium/Windsurf MCP configs participating in the same cross-surface mismatch.
