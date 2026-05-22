@@ -17,6 +17,7 @@ interface McpServerRaw {
   enabled?: boolean;
   disabled?: boolean;
   env?: Record<string, string>;
+  headers?: Record<string, string>;
   url?: string;
   serverUrl?: string;
 }
@@ -89,6 +90,7 @@ async function readMcpServers(
       enabled: typeof value.enabled === 'boolean' ? value.enabled : undefined,
       disabled: typeof value.disabled === 'boolean' ? value.disabled : undefined,
       env: readStringMap(value.env),
+      headers: readStringMap(value.headers),
       url: typeof value.url === 'string' ? value.url : undefined,
       serverUrl: typeof value.serverUrl === 'string' ? value.serverUrl : undefined
     };
@@ -103,6 +105,7 @@ async function readMcpServers(
       command,
       enabled: serverEnabled(raw),
       env: raw.env ?? {},
+      headers: raw.headers ?? {},
       unpinned: isUnpinnedCommand(raw),
       line: raw.line,
       file: config.path,

@@ -281,6 +281,51 @@ test('CLI reports only differing MCP environment value keys without leaking valu
   assert.doesNotMatch(stdout, /cursor-token-value/);
 });
 
+test('CLI reports MCP server header drift without leaking values', async () => {
+  const repo = join(testDir, 'fixtures', 'mcp-header-mismatch');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'medium');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'mcp_header_mismatch');
+  assert.equal(report.findings[0].severity, 'medium');
+  assert.equal(report.findings[0].subject, 'analytics');
+  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'vscode_mcp']);
+  assert.match(report.findings[0].message, /header names differ/);
+  assert.match(report.findings[0].message, /Authorization/);
+  assert.match(report.findings[0].message, /X-API-Key/);
+  assert.doesNotMatch(stdout, /root-header-secret/);
+  assert.doesNotMatch(stdout, /vscode-header-secret/);
+});
+
+test('CLI reports only differing MCP header value keys without leaking values', async () => {
+  const repo = join(testDir, 'fixtures', 'mcp-header-value-mismatch');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'medium');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'mcp_header_mismatch');
+  assert.match(report.findings[0].message, /header values differ/);
+  assert.match(report.findings[0].message, /Authorization/);
+  assert.doesNotMatch(report.findings[0].message, /X-Org/);
+  assert.doesNotMatch(stdout, /root-header-secret/);
+  assert.doesNotMatch(stdout, /cursor-header-secret/);
+});
+
 test('CLI reports Codex network access alongside unreadable agent surfaces', async () => {
   const repo = join(testDir, 'fixtures', 'codex-network-unreadable-surface');
 

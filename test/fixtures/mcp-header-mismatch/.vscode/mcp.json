@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "analytics": {
+      "serverUrl": "https://mcp.example.test/sse",
+      "headers": {
+        "X-API-Key": "vscode-header-secret"
+      }
+    }
+  }
+}

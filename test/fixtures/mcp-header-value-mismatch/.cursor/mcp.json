@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "analytics": {
+      "serverUrl": "https://mcp.example.test/sse",
+      "headers": {
+        "Authorization": "Bearer cursor-header-secret",
+        "X-Org": "reverie"
+      }
+    }
+  }
+}
