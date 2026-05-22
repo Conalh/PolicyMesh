@@ -6,6 +6,7 @@ export function runMeshRules(policies: RepoPolicies): Finding[] {
   const findings: Finding[] = [
     ...detectMcpCommandMismatch(policies),
     ...detectMcpServerMissing(policies),
+    ...detectMcpEnvMismatch(policies),
     ...detectMcpUnpinned(policies),
     ...detectClaudeMcpGrantMissingServer(policies),
     ...detectClaudeDenyAllowOverlap(policies),
@@ -118,6 +119,46 @@ function detectMcpServerMissing(policies: RepoPolicies): Finding[] {
       message: `MCP server "${name}" is defined in ${formatSurfaceList(uniqueSurfaces(servers.map((s) => s.surfaceId)))} but missing from ${formatSurfaceList(missing)}.`,
       recommendation: 'Align MCP server definitions across all MCP config files or document why a surface intentionally omits the server.',
       surfaces: uniqueSurfaces([...present, ...missing])
+    });
+  }
+
+  return findings;
+}
+
+function detectMcpEnvMismatch(policies: RepoPolicies): Finding[] {
+  const findings: Finding[] = [];
+  const byName = groupMcpServersByName(policies);
+
+  for (const [name, servers] of byName) {
+    if (servers.length < 2) {
+      continue;
+    }
+
+    const envFingerprints = new Set(servers.map((server) => envFingerprint(server.env)));
+    if (envFingerprints.size <= 1) {
+      continue;
+    }
+
+    const envKeyFingerprints = new Set(servers.map((server) => envKeyFingerprint(server.env)));
+    const keySummary = summarizeEnvKeys(servers);
+    const primary = servers[0];
+    const differingKeys = differingEnvKeys(servers);
+    findings.push({
+      kind: 'mcp_env_mismatch',
+      severity: 'medium',
+      file: primary.file,
+      line: primary.line,
+      locations: servers.map((server) => ({
+        file: server.file,
+        line: server.line,
+        surface: server.surfaceId
+      })),
+      subject: name,
+      message: envKeyFingerprints.size > 1
+        ? `MCP server "${name}" environment variable names differ across surfaces: ${keySummary}.`
+        : `MCP server "${name}" environment values differ across surfaces for ${differingKeys.join(', ')}.`,
+      recommendation: 'Align MCP server environment variable names and secret sources across surfaces, or document why each agent needs different wiring.',
+      surfaces: uniqueSurfaces(servers.map((server) => server.surfaceId))
     });
   }
 
@@ -429,6 +470,38 @@ function groupMcpServersByName(policies: RepoPolicies): Map<string, McpServer[]>
 
 function uniqueSurfaces(surfaces: SurfaceId[]): SurfaceId[] {
   return [...new Set(surfaces)];
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values)].sort();
+}
+
+function envFingerprint(env: Record<string, string>): string {
+  return Object.entries(env)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+}
+
+function envKeyFingerprint(env: Record<string, string>): string {
+  return uniqueSorted(Object.keys(env)).join('\n');
+}
+
+function differingEnvKeys(servers: McpServer[]): string[] {
+  const keys = uniqueSorted(servers.flatMap((server) => Object.keys(server.env)));
+  return keys.filter((key) => {
+    const values = new Set(servers.map((server) => server.env[key] ?? '<unset>'));
+    return values.size > 1;
+  });
+}
+
+function summarizeEnvKeys(servers: McpServer[]): string {
+  return servers
+    .map((server) => {
+      const keys = uniqueSorted(Object.keys(server.env));
+      return `${server.surfaceId} uses ${keys.length > 0 ? keys.join(', ') : 'no env variables'}`;
+    })
+    .join('; ');
 }
 
 function formatSurfaceList(surfaces: SurfaceId[]): string {

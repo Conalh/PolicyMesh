@@ -14,6 +14,7 @@ interface McpServerRaw {
   sourceText?: string;
   command?: string;
   args?: string[];
+  env?: Record<string, string>;
   url?: string;
   serverUrl?: string;
 }
@@ -83,6 +84,7 @@ async function readMcpServers(
       sourceText: source.text,
       command: typeof value.command === 'string' ? value.command : undefined,
       args: Array.isArray(value.args) ? value.args.filter((arg): arg is string => typeof arg === 'string') : undefined,
+      env: readStringMap(value.env),
       url: typeof value.url === 'string' ? value.url : undefined,
       serverUrl: typeof value.serverUrl === 'string' ? value.serverUrl : undefined
     };
@@ -95,6 +97,7 @@ async function readMcpServers(
     servers.push({
       name,
       command,
+      env: raw.env ?? {},
       unpinned: isUnpinnedCommand(raw),
       line: raw.line,
       file: config.path,
@@ -113,6 +116,15 @@ function readServerMap(json: Record<string, unknown>, serverKeys: readonly strin
   }
 
   return undefined;
+}
+
+function readStringMap(value: unknown): Record<string, string> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+  return Object.fromEntries(entries);
 }
 
 export function serverCommand(server: McpServerRaw): string {
