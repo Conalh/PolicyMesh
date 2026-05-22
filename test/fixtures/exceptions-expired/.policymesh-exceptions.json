@@ -1,0 +1,10 @@
+{
+  "exceptions": [
+    {
+      "kind": "policy_mesh.mcp_enabled_mismatch",
+      "subject": "github",
+      "reason": "Should have been resolved by Q1",
+      "expiry": "2020-01-01"
+    }
+  ]
+}

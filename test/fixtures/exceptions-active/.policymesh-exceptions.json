@@ -1,0 +1,10 @@
+{
+  "exceptions": [
+    {
+      "kind": "policy_mesh.mcp_enabled_mismatch",
+      "subject": "github",
+      "reason": "Intentionally disabled on Cursor while we evaluate a regression",
+      "expiry": "2999-12-31"
+    }
+  ]
+}

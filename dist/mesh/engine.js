@@ -1,5 +1,6 @@
 import { isBroadAllow, isSensitiveDeny } from '../parsers/claude.js';
 import { codexSandboxRank } from '../parsers/codex.js';
+import { matchSecret } from './secrets.js';
 export function runMeshRules(policies) {
     const findings = [
         ...detectMcpCommandMismatch(policies),
@@ -8,6 +9,7 @@ export function runMeshRules(policies) {
         ...detectMcpEnvMismatch(policies),
         ...detectMcpHeaderMismatch(policies),
         ...detectMcpUnpinned(policies),
+        ...detectHardcodedSecrets(policies),
         ...detectClaudeMcpGrantMissingServer(policies),
         ...detectClaudeDenyAllowOverlap(policies),
         ...detectClaudeBroadAllowNoGuard(policies),
@@ -16,6 +18,47 @@ export function runMeshRules(policies) {
         ...detectCodexClaudePostureGap(policies)
     ];
     return findings;
+}
+function detectHardcodedSecrets(policies) {
+    const findings = [];
+    for (const surface of policies.mcpSurfaces) {
+        for (const server of surface.servers) {
+            const hit = findServerSecret(server);
+            if (!hit) {
+                continue;
+            }
+            findings.push({
+                kind: 'policy_mesh.hardcoded_secret',
+                severity: 'critical',
+                file: server.file,
+                line: server.line,
+                subject: server.name,
+                message: `MCP server "${server.name}" appears to embed a ${hit.provider} credential in ${hit.field}. Hardcoded secrets in agent configs leak through git history.`,
+                recommendation: 'Replace the literal value with an environment-variable reference (e.g., env:VAR in Codex, ${env:VAR} in VS Code) and rotate the exposed credential immediately.',
+                surfaces: [server.surfaceId]
+            });
+        }
+    }
+    return findings;
+}
+function findServerSecret(server) {
+    const commandMatch = matchSecret(server.command);
+    if (commandMatch) {
+        return { provider: commandMatch.provider, field: 'launch command' };
+    }
+    for (const [key, value] of Object.entries(server.env)) {
+        const envMatch = matchSecret(value, { envOrHeaderContext: true });
+        if (envMatch) {
+            return { provider: envMatch.provider, field: `env variable ${key}` };
+        }
+    }
+    for (const [key, value] of Object.entries(server.headers)) {
+        const headerMatch = matchSecret(value, { envOrHeaderContext: true });
+        if (headerMatch) {
+            return { provider: headerMatch.provider, field: `header ${key}` };
+        }
+    }
+    return undefined;
 }
 function detectClaudeMcpGrantMissingServer(policies) {
     const claude = policies.claude;

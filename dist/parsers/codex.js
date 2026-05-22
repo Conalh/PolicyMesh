@@ -298,6 +298,7 @@ function buildCodexMcpServers(drafts) {
             enabled: draft.enabled !== false,
             env: draft.env,
             headers: draft.headers,
+            args: draft.args,
             unpinned: isUnpinnedCommand(draft),
             line: draft.line,
             file: CODEX_CONFIG_FILE,

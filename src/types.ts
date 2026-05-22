@@ -44,6 +44,10 @@ export interface McpServer {
   enabled: boolean;
   env: Record<string, string>;
   headers: Record<string, string>;
+  /** Raw command argument list as authored in the config, preserved so
+   *  detectors can inspect individual tokens (e.g. local script paths)
+   *  without re-parsing the joined command string. */
+  args?: string[];
   unpinned: boolean;
   line?: number;
   file: string;
@@ -81,6 +85,21 @@ export interface RepoPolicies {
   claude?: ClaudePolicy;
   codex?: CodexPolicy;
   parseFindings?: Finding[];
+}
+
+export interface Exception {
+  /** Finding kind to suppress, e.g. "policy_mesh.mcp_enabled_mismatch". */
+  kind: string;
+  /** Literal Finding.subject to match. No glob support in v1. */
+  subject: string;
+  /** Free-form explanation. Not interpreted by the engine. */
+  reason?: string;
+  /**
+   * ISO date (YYYY-MM-DD). When set and in the past, the matching
+   * finding is surfaced back with severity downgraded and an
+   * "[EXPIRED WHITELIST]" prefix on the message.
+   */
+  expiry?: string;
 }
 
 export interface MatrixRow {

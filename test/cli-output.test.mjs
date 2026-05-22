@@ -424,6 +424,114 @@ test('CLI reports Codex network access alongside unreadable agent surfaces', asy
   assert.deepEqual(report.findings[1].surfaces, ['codex', 'cursor_mcp']);
 });
 
+test('CLI reports hardcoded secrets in MCP env without leaking the value', async () => {
+  const repo = join(testDir, 'fixtures', 'mcp-hardcoded-secret');
+  const secret = 'sk-proj-fakeFAKEfakeFAKEfakeFAKE0123456789ABCDEF';
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'critical');
+  const secretFindings = report.findings.filter(
+    (finding) => finding.kind === 'policy_mesh.hardcoded_secret'
+  );
+  assert.equal(secretFindings.length, 1);
+  assert.equal(secretFindings[0].severity, 'critical');
+  assert.equal(secretFindings[0].subject, 'leaky-openai');
+  assert.deepEqual(secretFindings[0].surfaces, ['root_mcp']);
+  assert.match(secretFindings[0].message, /OpenAI/);
+  assert.match(secretFindings[0].message, /OPENAI_API_KEY/);
+  assert.match(secretFindings[0].recommendation, /environment-variable reference/);
+
+  // The safe `env:VAR` server must not be flagged.
+  assert.equal(
+    secretFindings.some((finding) => finding.subject === 'safe-anthropic'),
+    false
+  );
+
+  // The literal credential must never appear in any rendered output.
+  assert.doesNotMatch(stdout, new RegExp(secret.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')));
+});
+
+test('CLI active exception in .policymesh-exceptions.json suppresses matching finding', async () => {
+  const repo = join(testDir, 'fixtures', 'exceptions-active');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'none');
+  assert.equal(report.findingCount, 0);
+  assert.equal(report.surfaceCount, 2);
+});
+
+test('CLI expired exception surfaces finding with downgrade and EXPIRED prefix', async () => {
+  const repo = join(testDir, 'fixtures', 'exceptions-expired');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'low');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.findings[0].kind, 'policy_mesh.mcp_enabled_mismatch');
+  assert.equal(report.findings[0].severity, 'low');
+  assert.equal(report.findings[0].subject, 'github');
+  assert.match(report.findings[0].message, /^\[EXPIRED WHITELIST\]/);
+});
+
+test('CLI reports MCP servers referencing missing local scripts', async () => {
+  const repo = join(testDir, 'fixtures', 'mcp-missing-local-script');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const scriptFindings = report.findings.filter(
+    (finding) => finding.kind === 'policy_mesh.missing_local_script'
+  );
+  assert.equal(scriptFindings.length, 1);
+  assert.equal(scriptFindings[0].severity, 'medium');
+  assert.equal(scriptFindings[0].subject, 'broken-tool');
+  assert.match(scriptFindings[0].message, /missing-tool\.js/);
+  assert.deepEqual(scriptFindings[0].surfaces, ['root_mcp']);
+  // Servers using a present file or a package name must NOT be flagged.
+  assert.equal(scriptFindings.some((f) => f.subject === 'real-tool'), false);
+  assert.equal(scriptFindings.some((f) => f.subject === 'package-tool'), false);
+});
+
+test('CLI reports malformed .policymesh-exceptions.json instead of crashing', async () => {
+  const repo = join(testDir, 'fixtures', 'exceptions-malformed');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const parseFindings = report.findings.filter(
+    (finding) => finding.kind === 'policy_mesh.exceptions_parse_error'
+  );
+  assert.equal(parseFindings.length, 1);
+  assert.equal(parseFindings[0].severity, 'medium');
+  assert.equal(parseFindings[0].file, '.policymesh-exceptions.json');
+  assert.match(parseFindings[0].message, /Could not parse exceptions baseline/);
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 

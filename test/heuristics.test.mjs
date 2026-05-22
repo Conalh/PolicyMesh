@@ -9,6 +9,31 @@ const claudeModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'parsers', 'claude.js')).href
 );
 const { isBroadAllow } = claudeModule;
+const secretsModule = await import(
+  pathToFileURL(join(testDir, '..', 'dist', 'mesh', 'secrets.js')).href
+);
+const { matchSecret } = secretsModule;
+const exceptionsModule = await import(
+  pathToFileURL(join(testDir, '..', 'dist', 'exceptions.js')).href
+);
+const { applyExceptions } = exceptionsModule;
+const localScriptsModule = await import(
+  pathToFileURL(join(testDir, '..', 'dist', 'mesh', 'local-scripts.js')).href
+);
+const { localScriptCandidate } = localScriptsModule;
+
+function makeFinding(overrides = {}) {
+  return {
+    kind: 'policy_mesh.mcp_enabled_mismatch',
+    severity: 'medium',
+    file: '.mcp.json',
+    subject: 'github',
+    message: 'MCP server "github" enabled drift.',
+    recommendation: 'Align surfaces.',
+    surfaces: ['root_mcp', 'cursor_mcp'],
+    ...overrides
+  };
+}
 
 test('isBroadAllow: bare WebFetch is broad; scoped WebFetch is not', () => {
   assert.equal(isBroadAllow('WebFetch'), true);
@@ -43,4 +68,131 @@ test('isBroadAllow: filesystem grants on broad roots remain broad', () => {
 test('isBroadAllow: bare Task spawn is broad; scoped Task is not', () => {
   assert.equal(isBroadAllow('Task'), true);
   assert.equal(isBroadAllow('Task(explore-codebase)'), false);
+});
+
+test('matchSecret: detects common provider prefixes', () => {
+  assert.equal(matchSecret('sk-proj-fakeFAKEfakeFAKEfakeFAKE0123456789ABCDEF')?.provider, 'OpenAI');
+  assert.equal(matchSecret('sk-ant-fakeFAKEfakeFAKEfakeFAKE0123456789')?.provider, 'Anthropic');
+  assert.equal(matchSecret('ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')?.provider, 'GitHub');
+  assert.equal(matchSecret('github_pat_AAAAAAAAAAAAAAAAAAAAAA')?.provider, 'GitHub');
+  assert.equal(matchSecret('AKIAIOSFODNN7EXAMPLE')?.provider, 'AWS');
+  assert.equal(matchSecret('AIzaSyA-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')?.provider, 'Google');
+  assert.equal(matchSecret('xoxb-1234567890-fake-fake-fake-fake-fake-fake')?.provider, 'Slack');
+  assert.equal(matchSecret('glpat-AAAAAAAAAAAAAAAAAAAA')?.provider, 'GitLab');
+  assert.equal(matchSecret('npm_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')?.provider, 'npm');
+  assert.equal(matchSecret('dckr_pat_AAAAAAAAAAAAAAAAAAAA')?.provider, 'Docker');
+  assert.equal(matchSecret('sk_live_AAAAAAAAAAAAAAAAAAAA')?.provider, 'Stripe');
+});
+
+test('matchSecret: env:VAR references are never flagged', () => {
+  assert.equal(matchSecret('env:OPENAI_API_KEY'), undefined);
+  assert.equal(matchSecret('env:ghp_REAL_LOOKING_TOKEN_NAME'), undefined);
+});
+
+test('matchSecret: short or benign values are not flagged', () => {
+  assert.equal(matchSecret(''), undefined);
+  assert.equal(matchSecret('root-token-value'), undefined);
+  assert.equal(matchSecret('production'), undefined);
+  assert.equal(matchSecret('sk-short'), undefined);
+});
+
+test('matchSecret: hex tokens are only flagged in env/header context', () => {
+  const hex = 'a'.repeat(40);
+  assert.equal(matchSecret(hex), undefined);
+  assert.equal(matchSecret(hex, { envOrHeaderContext: true })?.provider, 'Hex token');
+  // Commit SHAs (40 hex) appearing in a launch command must NOT trip the detector.
+  assert.equal(matchSecret(`git checkout ${hex}`), undefined);
+});
+
+test('matchSecret: result never includes the literal secret', () => {
+  const value = 'sk-proj-fakeFAKEfakeFAKEfakeFAKE0123456789ABCDEF';
+  const result = matchSecret(value);
+  assert.ok(result);
+  assert.equal(JSON.stringify(result).includes(value), false);
+});
+
+test('applyExceptions: empty exception list is identity', () => {
+  const findings = [makeFinding()];
+  assert.deepEqual(applyExceptions(findings, []), findings);
+});
+
+test('applyExceptions: active exception suppresses matching finding', () => {
+  const findings = [makeFinding()];
+  const exceptions = [{
+    kind: 'policy_mesh.mcp_enabled_mismatch',
+    subject: 'github',
+    expiry: '2999-12-31'
+  }];
+  assert.deepEqual(applyExceptions(findings, exceptions), []);
+});
+
+test('applyExceptions: missing expiry treated as perpetually active', () => {
+  const findings = [makeFinding()];
+  const exceptions = [{ kind: 'policy_mesh.mcp_enabled_mismatch', subject: 'github' }];
+  assert.deepEqual(applyExceptions(findings, exceptions), []);
+});
+
+test('applyExceptions: expired exception surfaces finding with downgrade and prefix', () => {
+  const findings = [makeFinding({ severity: 'high' })];
+  const exceptions = [{
+    kind: 'policy_mesh.mcp_enabled_mismatch',
+    subject: 'github',
+    expiry: '2020-01-01'
+  }];
+  const result = applyExceptions(findings, exceptions);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].severity, 'low');
+  assert.match(result[0].message, /^\[EXPIRED WHITELIST\]/);
+});
+
+test('applyExceptions: non-matching kind or subject passes through unchanged', () => {
+  const findings = [makeFinding()];
+  const wrongKind = [{ kind: 'policy_mesh.mcp_command_mismatch', subject: 'github' }];
+  const wrongSubject = [{ kind: 'policy_mesh.mcp_enabled_mismatch', subject: 'analytics' }];
+  assert.deepEqual(applyExceptions(findings, wrongKind), findings);
+  assert.deepEqual(applyExceptions(findings, wrongSubject), findings);
+});
+
+test('localScriptCandidate: relative script in args is detected', () => {
+  assert.equal(
+    localScriptCandidate({ command: 'node ./scripts/run.js', args: ['./scripts/run.js'] }),
+    './scripts/run.js'
+  );
+  assert.equal(
+    localScriptCandidate({ command: 'python ./tools/db.py', args: ['./tools/db.py'] }),
+    './tools/db.py'
+  );
+});
+
+test('localScriptCandidate: relative script as command itself is detected', () => {
+  assert.equal(
+    localScriptCandidate({ command: './bin/runner.sh', args: [] }),
+    './bin/runner.sh'
+  );
+});
+
+test('localScriptCandidate: package names and bare commands are ignored', () => {
+  assert.equal(
+    localScriptCandidate({ command: 'npx -y @modelcontextprotocol/server-github@1.2.3', args: ['-y', '@modelcontextprotocol/server-github@1.2.3'] }),
+    undefined
+  );
+  assert.equal(
+    localScriptCandidate({ command: 'node', args: [] }),
+    undefined
+  );
+});
+
+test('localScriptCandidate: absolute paths and URLs are ignored', () => {
+  assert.equal(
+    localScriptCandidate({ command: '/usr/local/bin/script.sh', args: [] }),
+    undefined
+  );
+  assert.equal(
+    localScriptCandidate({ command: 'C:\\Users\\me\\script.bat', args: [] }),
+    undefined
+  );
+  assert.equal(
+    localScriptCandidate({ command: 'curl https://example.com/foo.js', args: ['https://example.com/foo.js'] }),
+    undefined
+  );
 });

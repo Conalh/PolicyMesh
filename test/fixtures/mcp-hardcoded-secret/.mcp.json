@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "leaky-openai": {
+      "command": "npx",
+      "args": ["-y", "@example/openai-bridge@1.0.0"],
+      "env": {
+        "OPENAI_API_KEY": "sk-proj-fakeFAKEfakeFAKEfakeFAKE0123456789ABCDEF"
+      }
+    },
+    "safe-anthropic": {
+      "command": "npx",
+      "args": ["-y", "@example/anthropic-bridge@1.0.0"],
+      "env": {
+        "ANTHROPIC_API_KEY": "env:ANTHROPIC_API_KEY"
+      }
+    }
+  }
+}

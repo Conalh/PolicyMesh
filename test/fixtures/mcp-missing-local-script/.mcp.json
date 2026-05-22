@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "broken-tool": {
+      "command": "node",
+      "args": ["./scripts/missing-tool.js"]
+    },
+    "real-tool": {
+      "command": "node",
+      "args": ["./scripts/present-tool.js"]
+    },
+    "package-tool": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@1.2.3"]
+    }
+  }
+}

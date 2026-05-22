@@ -1,0 +1,5 @@
+{
+  "exceptions": [
+    { "kind": "policy_mesh.mcp_enabled_mismatch", "subject": "github",
+  ]
+}

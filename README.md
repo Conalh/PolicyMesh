@@ -142,9 +142,30 @@ PolicyMesh v0 detects:
 - Codex network access enabled alongside other configured or unreadable agent surfaces.
 - Codex trusted project settings combined with risky MCP configuration.
 - Codex sandbox posture gaps relative to Claude deny rules.
+- Hardcoded API credentials embedded in MCP launch commands, environment variable values, or headers (CRITICAL). The finding names the provider and the field it appeared in; the literal credential is never echoed in any output format.
+- MCP servers referencing local scripts (relative paths ending in `.js`, `.py`, `.sh`, etc.) that do not exist in the checked-out repository.
 - Malformed JSON and Codex TOML agent config files that would otherwise hide a policy surface.
 
 PolicyMesh parses VS Code and Cursor configs as JSONC — `//` line comments, `/* */` block comments, and trailing commas are all accepted, so the audit doesn't false-fail on real-world editor output. `isBroadAllow` distinguishes scoped grants like `WebFetch(domain:example.com)` and `mcp__github__get_issue` from bare or wildcarded grants; narrow grants are not flagged.
+
+### Baseline exceptions
+
+Drop a `.policymesh-exceptions.json` at the repo root to suppress known and documented findings without disabling rules globally:
+
+```json
+{
+  "exceptions": [
+    {
+      "kind": "policy_mesh.mcp_enabled_mismatch",
+      "subject": "my-custom-tool",
+      "reason": "Intentionally disabled on Cursor while we evaluate a regression",
+      "expiry": "2026-12-31"
+    }
+  ]
+}
+```
+
+Matching findings (by `kind` + `subject`) are silently suppressed. Once `expiry` passes, the finding is surfaced again — downgraded to `low` and prefixed `[EXPIRED WHITELIST]` — so stale baselines stay visible instead of rotting silently.
 
 ## Complements ScopeTrail
 

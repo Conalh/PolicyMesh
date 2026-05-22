@@ -113,6 +113,7 @@ async function readMcpServers(
       enabled: serverEnabled(raw),
       env: raw.env ?? {},
       headers: raw.headers ?? {},
+      args: raw.args,
       unpinned: isUnpinnedCommand(raw),
       line: raw.line,
       file: config.path,
