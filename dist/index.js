@@ -21,6 +21,9 @@ export async function main(argv = process.argv.slice(2)) {
     if (argv[0] === 'render') {
         return runRender(argv.slice(1));
     }
+    if (argv[0] === 'diff') {
+        return runDiff(argv.slice(1));
+    }
     process.stderr.write(`Unknown command: ${argv[0]}\n`);
     return 2;
 }
@@ -177,8 +180,98 @@ function usage() {
     return [
         'Usage: policymesh audit --repo <path> [--format text|markdown|json|github] [--recursive]',
         `       ${fixUsage()}`,
-        `       ${renderUsage()}`
+        `       ${renderUsage()}`,
+        `       ${diffUsage()}`
     ].join('\n');
+}
+function diffUsage() {
+    return 'policymesh diff --base-report <json-file> --head-report <json-file> [--format text|markdown|json|github] [--annotation-path-prefix <path>]';
+}
+function parseDiffArgs(argv) {
+    let base;
+    let head;
+    let format = 'text';
+    let annotationPathPrefix;
+    for (let index = 0; index < argv.length; index += 1) {
+        const arg = argv[index];
+        const value = argv[index + 1];
+        if (arg === '--base-report') {
+            if (!value || value.startsWith('--')) {
+                return { ok: false, error: 'Missing value for --base-report' };
+            }
+            base = value;
+            index += 1;
+        }
+        else if (arg === '--head-report') {
+            if (!value || value.startsWith('--')) {
+                return { ok: false, error: 'Missing value for --head-report' };
+            }
+            head = value;
+            index += 1;
+        }
+        else if (arg === '--format') {
+            if (!isReportFormat(value)) {
+                return { ok: false, error: `Invalid format: ${value ?? ''}` };
+            }
+            format = value;
+            index += 1;
+        }
+        else if (arg === '--annotation-path-prefix') {
+            if (!value) {
+                return { ok: false, error: 'Missing value for --annotation-path-prefix' };
+            }
+            annotationPathPrefix = value;
+            index += 1;
+        }
+        else {
+            return { ok: false, error: `Unknown argument: ${arg}` };
+        }
+    }
+    if (!base) {
+        return { ok: false, error: 'Missing required argument: --base-report <json-file>' };
+    }
+    if (!head) {
+        return { ok: false, error: 'Missing required argument: --head-report <json-file>' };
+    }
+    return { ok: true, base, head, format, annotationPathPrefix };
+}
+async function runDiff(argv) {
+    const parsed = parseDiffArgs(argv);
+    if (!parsed.ok) {
+        process.stderr.write(`${parsed.error}\n${diffUsage()}\n`);
+        return 2;
+    }
+    const { readFile } = await import('node:fs/promises');
+    const { diffReports } = await import('./diff.js');
+    let baseReport;
+    let headReport;
+    try {
+        baseReport = JSON.parse(await readFile(parsed.base, 'utf8'));
+    }
+    catch (error) {
+        if (isNodeError(error) && error.code === 'ENOENT') {
+            process.stderr.write(`Base report not found: ${parsed.base}\n`);
+            return 2;
+        }
+        process.stderr.write(`Could not read base report: ${error.message}\n`);
+        return 2;
+    }
+    try {
+        headReport = JSON.parse(await readFile(parsed.head, 'utf8'));
+    }
+    catch (error) {
+        if (isNodeError(error) && error.code === 'ENOENT') {
+            process.stderr.write(`Head report not found: ${parsed.head}\n`);
+            return 2;
+        }
+        process.stderr.write(`Could not read head report: ${error.message}\n`);
+        return 2;
+    }
+    const delta = diffReports(baseReport, headReport);
+    process.stdout.write(renderReport(delta, parsed.format, {
+        githubAnnotationPathPrefix: parsed.annotationPathPrefix
+    }));
+    return 0;
 }
 function fixUsage() {
     return 'policymesh fix --repo <path> --canonical <surface> [--write]';

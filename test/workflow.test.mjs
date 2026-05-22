@@ -79,6 +79,24 @@ test('action.yml exposes the --recursive flag as the "recursive" input', async (
   assert.match(action, /MESH_RECURSIVE.*=.*"true"/);
 });
 
+test('action.yml exposes diff mode that audits the PR base and gates fail-on the delta', async () => {
+  const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
+
+  // Input + env passthrough.
+  assert.match(action, /^\s{2}diff:/m);
+  assert.match(action, /MESH_DIFF:\s*\$\{\{\s*inputs\.diff\s*\}\}/);
+  // Gated on pull_request event so non-PR runs never invoke git worktree.
+  assert.match(action, /MESH_DIFF.*=.*"true".*GITHUB_EVENT_NAME.*=.*pull_request/s);
+  // Worktree is used for the base audit and torn down after.
+  assert.match(action, /git worktree add --detach "\$base_dir"/);
+  assert.match(action, /git worktree remove --force "\$base_dir"/);
+  // Annotations and outputs use the delta when diff is on.
+  assert.match(action, /annotations_source="\$delta_json"/);
+  assert.match(action, /rating_source="\$delta_json"/);
+  // The full head report is still rendered for the markdown step summary.
+  assert.match(action, /render --input "\$json_file" --format markdown/);
+});
+
 test('action.yml runs a single audit pass and renders the other formats from saved JSON', async () => {
   const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
 
@@ -87,7 +105,8 @@ test('action.yml runs a single audit pass and renders the other formats from sav
   assert.equal(auditInvocations.length, 0, 'audit args are now built into an array; no inline audit invocations expected');
   assert.match(action, /index\.js" "\$\{audit_args\[@\]\}" > "\$json_file"/);
   assert.match(action, /index\.js" render --input "\$json_file" --format markdown/);
-  assert.match(action, /index\.js" render --input "\$json_file" --format github/);
+  // Annotations source is dynamic — head by default, delta in diff mode.
+  assert.match(action, /index\.js" render --input "\$annotations_source" --format github/);
 });
 
 test('published Action runs the bundled CLI without installing or rebuilding itself', async () => {

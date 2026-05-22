@@ -816,6 +816,103 @@ test('CLI render --annotation-path-prefix prepends the prefix in github annotati
   }
 });
 
+test('CLI diff returns only findings introduced or worsened in head', async () => {
+  // Use aligned vs conflicted as a stand-in for "before this PR vs after".
+  // aligned has no findings; conflicted has 7 (post-consolidation).
+  // The delta should be 7 net new findings.
+  const tmp = await mkdtemp(join(tmpdir(), 'policymesh-diff-'));
+  try {
+    const baseJsonPath = join(tmp, 'base.json');
+    const headJsonPath = join(tmp, 'head.json');
+
+    const baseAudit = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', join(testDir, 'fixtures', 'aligned'), '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const headAudit = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', join(testDir, 'fixtures', 'conflicted'), '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(baseJsonPath, baseAudit.stdout, 'utf8');
+    await writeFile(headJsonPath, headAudit.stdout, 'utf8');
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'diff', '--base-report', baseJsonPath, '--head-report', headJsonPath, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const delta = JSON.parse(stdout);
+
+    assert.equal(delta.findingCount, 7, 'all conflicted findings are new relative to aligned');
+    assert.equal(delta.rating, 'high');
+    // Effective union and matrix still reflect head's full state for context.
+    assert.ok(delta.matrix.length > 0);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI diff produces an empty delta when base and head match', async () => {
+  const tmp = await mkdtemp(join(tmpdir(), 'policymesh-diff-'));
+  try {
+    const audit = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', join(testDir, 'fixtures', 'conflicted'), '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const jsonPath = join(tmp, 'report.json');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(jsonPath, audit.stdout, 'utf8');
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'diff', '--base-report', jsonPath, '--head-report', jsonPath, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const delta = JSON.parse(stdout);
+
+    assert.equal(delta.findingCount, 0);
+    assert.equal(delta.rating, 'none');
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI diff renders github annotations only for delta findings', async () => {
+  const tmp = await mkdtemp(join(tmpdir(), 'policymesh-diff-'));
+  try {
+    const baseAudit = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', join(testDir, 'fixtures', 'aligned'), '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const headAudit = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', join(testDir, 'fixtures', 'mcp-hardcoded-secret'), '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const basePath = join(tmp, 'base.json');
+    const headPath = join(tmp, 'head.json');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(basePath, baseAudit.stdout, 'utf8');
+    await writeFile(headPath, headAudit.stdout, 'utf8');
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'diff', '--base-report', basePath, '--head-report', headPath, '--format', 'github'],
+      { cwd: packageRoot }
+    );
+
+    assert.match(stdout, /^::warning file=/m);
+    assert.match(stdout, /PolicyMesh critical finding/);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
 test('CLI render rejects missing input file with a clear error', async () => {
   await assert.rejects(
     execFileAsync(

@@ -25,6 +25,21 @@ const privilegedModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'mesh', 'privileged.js')).href
 );
 const { privilegedToken } = privilegedModule;
+const diffModule = await import(
+  pathToFileURL(join(testDir, '..', 'dist', 'diff.js')).href
+);
+const { diffReports } = diffModule;
+
+function makeReport(findings) {
+  return {
+    rating: findings.length ? findings[0].severity : 'none',
+    findingCount: findings.length,
+    surfaceCount: 1,
+    findings,
+    effectiveUnion: ['1 MCP server configured'],
+    matrix: []
+  };
+}
 
 function makeFinding(overrides = {}) {
   return {
@@ -222,4 +237,59 @@ test('privilegedToken: normal commands are not flagged', () => {
   assert.equal(privilegedToken({ command: 'npx -y @org/pkg', args: ['-y', '@org/pkg'] }), undefined);
   // Substring matches must not trip the detector.
   assert.equal(privilegedToken({ command: 'pseudo-tool', args: [] }), undefined);
+});
+
+test('diffReports: identical reports produce an empty delta', () => {
+  const finding = makeFinding();
+  const base = makeReport([finding]);
+  const head = makeReport([finding]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.findingCount, 0);
+  assert.equal(delta.rating, 'none');
+  // Matrix and effectiveUnion still come from head so the reviewer sees the full picture.
+  assert.deepEqual(delta.effectiveUnion, head.effectiveUnion);
+});
+
+test('diffReports: finding only in head is included as new', () => {
+  const base = makeReport([]);
+  const head = makeReport([makeFinding({ subject: 'github' })]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.findingCount, 1);
+  assert.equal(delta.findings[0].subject, 'github');
+  // Message is not prefixed — it is new, not worsened.
+  assert.doesNotMatch(delta.findings[0].message, /WORSENED/);
+});
+
+test('diffReports: finding worsened in head is included with WORSENED prefix and new severity', () => {
+  const base = makeReport([makeFinding({ severity: 'low' })]);
+  const head = makeReport([makeFinding({ severity: 'high' })]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.findingCount, 1);
+  assert.equal(delta.findings[0].severity, 'high');
+  assert.match(delta.findings[0].message, /^\[WORSENED from low\]/);
+});
+
+test('diffReports: finding present in base but resolved in head is dropped', () => {
+  const base = makeReport([makeFinding({ subject: 'github' })]);
+  const head = makeReport([]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.findingCount, 0);
+});
+
+test('diffReports: rating reflects only delta findings, not base or head', () => {
+  // head has a pre-existing low and a new critical; delta should be critical.
+  const base = makeReport([makeFinding({ subject: 'github', severity: 'low' })]);
+  const head = makeReport([
+    makeFinding({ subject: 'github', severity: 'low' }),
+    makeFinding({ subject: 'analytics', severity: 'critical' })
+  ]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.rating, 'critical');
+  assert.equal(delta.findingCount, 1);
+  assert.equal(delta.findings[0].subject, 'analytics');
 });

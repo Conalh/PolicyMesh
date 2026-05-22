@@ -169,6 +169,30 @@ Set `recursive: true` to audit every sub-project with its own agent config indep
           fail-on: none
           recursive: true
 ```
+
+### Optional: PR delta mode
+
+For repos that already have pre-existing findings, the default audit fires on every PR with the same noise. Set `diff: true` to gate annotations and `fail-on` on only the findings that this PR **introduces or worsens**:
+
+```yaml
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0     # required so the PR base ref is available
+      - uses: Conalh/PolicyMesh@v0.1.18
+        with:
+          fail-on: high
+          diff: true
+```
+
+The Action audits the PR base ref in a temporary worktree, audits HEAD, and runs `policymesh diff` to compute the delta. Annotations and the `rating`/`finding-count` outputs reflect the delta only; the step summary and sticky PR comment still show the full head report for context. Findings that were already present in the base ref are unchanged in the delta; findings whose severity has increased are marked `[WORSENED from <severity>]` in the message.
+
+If you need to compose this yourself, the CLI exposes the primitives:
+
+```powershell
+node dist/index.js audit --repo /path/to/base --format json > base.json
+node dist/index.js audit --repo /path/to/head --format json > head.json
+node dist/index.js diff --base-report base.json --head-report head.json --format github
+```
 Missing-server findings emit annotations on configured surfaces that are missing MCP servers, not only on the surface where the server is defined.
 For subdirectory audits using the `repo` input, GitHub annotation file paths are prefixed back to the workflow workspace so warnings point at the checked-out files.
 

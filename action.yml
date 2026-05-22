@@ -32,6 +32,19 @@ inputs:
       single-project behaviour.
     required: false
     default: 'false'
+  diff:
+    description: >-
+      When 'true' and the workflow is running on a pull_request event,
+      PolicyMesh audits the PR base in a temporary worktree, audits HEAD,
+      and emits PR annotations only for findings that are NEW or WORSENED
+      in this PR. The step summary and sticky comment still show the
+      full head report. The fail-on threshold gates on the delta rating,
+      so a PR that does not introduce new conflicts can pass even when
+      the repo has pre-existing findings. Requires the base ref to be
+      fetchable; use fetch-depth: 0 on actions/checkout if your repo
+      uses shallow clones.
+    required: false
+    default: 'false'
 
 outputs:
   rating:
@@ -59,6 +72,7 @@ runs:
         MESH_FAIL_ON: ${{ inputs.fail-on }}
         MESH_GITHUB_TOKEN: ${{ inputs.github-token }}
         MESH_RECURSIVE: ${{ inputs.recursive }}
+        MESH_DIFF: ${{ inputs.diff }}
       run: |
         set -euo pipefail
 
@@ -84,11 +98,43 @@ runs:
         # we compute the prefix once here and pass it to render.
         annotation_prefix="$(node -e 'const {relative,resolve}=require("node:path");const p=relative(process.cwd(),resolve(process.argv[1]));process.stdout.write(p && p !== "." && !p.startsWith("..") ? p : "")' "$repo")"
 
+        # PR-delta mode: audit the base ref in a worktree and diff against
+        # HEAD. Annotations and rating gate on the delta; the markdown
+        # report still shows the full head audit for context.
+        annotations_source="$json_file"
+        rating_source="$json_file"
+        if [ "${MESH_DIFF:-false}" = "true" ] && [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
+          base_sha="$(jq -r '.pull_request.base.sha // empty' "$GITHUB_EVENT_PATH")"
+          if [ -n "$base_sha" ]; then
+            git fetch --no-tags --depth=1 origin "$base_sha" 2>/dev/null || true
+            base_dir="${RUNNER_TEMP:-.}/policymesh-base-worktree"
+            if git worktree add --detach "$base_dir" "$base_sha" 2>/dev/null; then
+              base_json="${RUNNER_TEMP:-.}/policymesh-base.json"
+              delta_json="${RUNNER_TEMP:-.}/policymesh-delta.json"
+              base_audit_args=(audit --repo "$base_dir" --format json)
+              if [ "${MESH_RECURSIVE:-false}" = "true" ]; then
+                base_audit_args+=(--recursive)
+              fi
+              node "$GITHUB_ACTION_PATH/dist/index.js" "${base_audit_args[@]}" > "$base_json"
+              git worktree remove --force "$base_dir" 2>/dev/null || true
+
+              node "$GITHUB_ACTION_PATH/dist/index.js" diff \
+                --base-report "$base_json" \
+                --head-report "$json_file" \
+                --format json > "$delta_json"
+              annotations_source="$delta_json"
+              rating_source="$delta_json"
+            else
+              echo "::notice::PolicyMesh diff requested but base ref $base_sha could not be checked out (try fetch-depth: 0). Falling back to full head report for annotations."
+            fi
+          fi
+        fi
+
         node "$GITHUB_ACTION_PATH/dist/index.js" render --input "$json_file" --format markdown | tee "$report_file"
         if [ -n "$annotation_prefix" ]; then
-          node "$GITHUB_ACTION_PATH/dist/index.js" render --input "$json_file" --format github --annotation-path-prefix "$annotation_prefix"
+          node "$GITHUB_ACTION_PATH/dist/index.js" render --input "$annotations_source" --format github --annotation-path-prefix "$annotation_prefix"
         else
-          node "$GITHUB_ACTION_PATH/dist/index.js" render --input "$json_file" --format github
+          node "$GITHUB_ACTION_PATH/dist/index.js" render --input "$annotations_source" --format github
         fi
 
         if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
@@ -126,8 +172,11 @@ runs:
           fi
         fi
 
-        rating="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).rating)" "$json_file")"
-        finding_count="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).findingCount)" "$json_file")"
+        # Outputs reflect the gating source: delta in PR-delta mode,
+        # full head report otherwise. surface_count always reflects the
+        # full repo so users can see total surface coverage.
+        rating="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).rating)" "$rating_source")"
+        finding_count="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).findingCount)" "$rating_source")"
         surface_count="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).surfaceCount)" "$json_file")"
         echo "rating=$rating" >> "$GITHUB_OUTPUT"
         echo "finding-count=$finding_count" >> "$GITHUB_OUTPUT"
