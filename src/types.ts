@@ -4,6 +4,7 @@ export type SurfaceId =
   | 'root_mcp'
   | 'cursor_mcp'
   | 'vscode_mcp'
+  | 'codeium_mcp'
   | 'windsurf_mcp'
   | 'claude'
   | 'codex';

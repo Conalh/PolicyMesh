@@ -636,7 +636,8 @@ function surfaceLabel(surface: SurfaceId): string {
     root_mcp: 'Root MCP',
     cursor_mcp: 'Cursor MCP',
     vscode_mcp: 'VS Code MCP',
-    windsurf_mcp: 'Codeium/Windsurf MCP',
+    codeium_mcp: 'Codeium MCP',
+    windsurf_mcp: 'Windsurf MCP',
     claude: 'Claude',
     codex: 'Codex'
   };
