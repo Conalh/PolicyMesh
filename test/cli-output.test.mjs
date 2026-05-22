@@ -130,6 +130,13 @@ test('CLI conflicted fixture returns high rating with expected kinds', async () 
   assert.ok(kinds.includes('codex_network_without_review'));
   assert.ok(kinds.includes('codex_trusted_with_risky_mcp'));
   assert.ok(kinds.includes('codex_claude_posture_gap'));
+
+  const githubMismatch = report.findings.find(
+    (finding) => finding.kind === 'mcp_command_mismatch' && finding.subject === 'github'
+  );
+  assert.ok(githubMismatch);
+  assert.ok(githubMismatch.surfaces.includes('codex'));
+  assert.ok(githubMismatch.locations.some((location) => location.file === '.codex/config.toml' && location.surface === 'codex'));
 });
 
 test('CLI reports malformed agent config instead of crashing', async () => {
@@ -424,6 +431,7 @@ test('CLI emits GitHub warning annotations', async () => {
     mismatchAnnotations.map((line) => /^::warning file=([^,]+)/.exec(line)?.[1]).sort(),
     [
       '.codeium/windsurf/mcp_config.json',
+      '.codex/config.toml',
       '.cursor/mcp.json',
       '.mcp.json',
       '.vscode/mcp.json'

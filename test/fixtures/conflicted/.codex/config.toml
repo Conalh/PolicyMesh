@@ -4,3 +4,7 @@ network_access = true
 
 [projects]
 trust_level = "trusted"
+
+[mcp_servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github@2.0.0"]
