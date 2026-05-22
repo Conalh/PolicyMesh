@@ -215,6 +215,51 @@ test('CLI reports servers missing from configured but empty MCP surfaces', async
   assert.match(report.findings[0].message, /missing from cursor_mcp/);
 });
 
+test('CLI reports MCP server environment drift without leaking values', async () => {
+  const repo = join(testDir, 'fixtures', 'mcp-env-mismatch');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'medium');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'mcp_env_mismatch');
+  assert.equal(report.findings[0].severity, 'medium');
+  assert.equal(report.findings[0].subject, 'github');
+  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'vscode_mcp']);
+  assert.match(report.findings[0].message, /environment variable names differ/);
+  assert.match(report.findings[0].message, /GITHUB_TOKEN/);
+  assert.match(report.findings[0].message, /GH_TOKEN/);
+  assert.doesNotMatch(stdout, /root-token-value/);
+  assert.doesNotMatch(stdout, /vscode-token-value/);
+});
+
+test('CLI reports only differing MCP environment value keys without leaking values', async () => {
+  const repo = join(testDir, 'fixtures', 'mcp-env-value-mismatch');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'medium');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'mcp_env_mismatch');
+  assert.match(report.findings[0].message, /environment values differ/);
+  assert.match(report.findings[0].message, /GITHUB_TOKEN/);
+  assert.doesNotMatch(report.findings[0].message, /SHARED_TIMEOUT/);
+  assert.doesNotMatch(stdout, /root-token-value/);
+  assert.doesNotMatch(stdout, /cursor-token-value/);
+});
+
 test('CLI reports Codex network access alongside unreadable agent surfaces', async () => {
   const repo = join(testDir, 'fixtures', 'codex-network-unreadable-surface');
 
