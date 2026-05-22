@@ -625,6 +625,49 @@ test('CLI reports malformed .policymesh-exceptions.json instead of crashing', as
   assert.match(parseFindings[0].message, /Could not parse exceptions baseline/);
 });
 
+test('CLI text format emits ANSI colors when FORCE_COLOR is set', async () => {
+  const repo = join(testDir, 'fixtures', 'conflicted');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'text'],
+    { cwd: packageRoot, env: { ...process.env, FORCE_COLOR: '1', NO_COLOR: undefined } }
+  );
+
+  const esc = String.fromCharCode(0x1b);
+  assert.ok(stdout.includes(esc), 'expected ANSI escape bytes when FORCE_COLOR=1');
+  assert.ok(stdout.includes(`${esc}[91m`) || stdout.includes(`${esc}[31m`), 'expected red/bright-red for high+ findings');
+});
+
+test('CLI text format respects NO_COLOR even with FORCE_COLOR set', async () => {
+  const repo = join(testDir, 'fixtures', 'conflicted');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'text'],
+    { cwd: packageRoot, env: { ...process.env, FORCE_COLOR: '1', NO_COLOR: '1' } }
+  );
+
+  const esc = String.fromCharCode(0x1b);
+  assert.equal(stdout.includes(esc), false, 'NO_COLOR must suppress ANSI escapes');
+});
+
+test('CLI text format produces no ANSI when stdout is not a TTY and FORCE_COLOR is unset', async () => {
+  const repo = join(testDir, 'fixtures', 'aligned');
+  const childEnv = { ...process.env };
+  delete childEnv.FORCE_COLOR;
+  delete childEnv.NO_COLOR;
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'text'],
+    { cwd: packageRoot, env: childEnv }
+  );
+
+  const esc = String.fromCharCode(0x1b);
+  assert.equal(stdout.includes(esc), false, 'no ANSI when stdout is piped and no FORCE_COLOR');
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 

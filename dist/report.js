@@ -49,18 +49,79 @@ function renderMarkdown(report) {
     return `${lines.join('\n').trimEnd()}\n`;
 }
 function renderText(report) {
-    const lines = [`PolicyMesh agent policy review: ${report.rating.toUpperCase()}`];
-    lines.push('', 'Effective capability union:');
+    const color = colorEnabled();
+    const lines = [
+        `${bold('PolicyMesh agent policy review:', color)} ${ratingColor(report.rating, color)}`
+    ];
+    lines.push('', bold('Effective capability union:', color));
     for (const item of report.effectiveUnion) {
         lines.push(`- ${item}`);
     }
     for (const finding of report.findings) {
-        lines.push(`[${finding.severity.toUpperCase()}] ${finding.subject}: ${finding.message} Surfaces: ${formatSurfaceList(finding.surfaces)}.`);
+        const tag = `[${finding.severity.toUpperCase()}]`;
+        const coloredTag = severityColor(finding.severity, tag, color);
+        lines.push(`${coloredTag} ${finding.subject}: ${finding.message} Surfaces: ${formatSurfaceList(finding.surfaces)}.`);
     }
     if (report.findings.length === 0) {
-        lines.push('No cross-surface policy conflicts or gaps detected.');
+        lines.push(severityColor('low', 'No cross-surface policy conflicts or gaps detected.', color));
     }
     return `${lines.join('\n')}\n`;
+}
+const ANSI = {
+    reset: '[0m',
+    bold: '[1m',
+    red: '[31m',
+    brightRed: '[91m',
+    yellow: '[33m',
+    cyan: '[36m',
+    green: '[32m'
+};
+function colorEnabled() {
+    // NO_COLOR (https://no-color.org/) wins unconditionally.
+    if (process.env.NO_COLOR !== undefined) {
+        return false;
+    }
+    // FORCE_COLOR opts in even when stdout is not a TTY — useful for CI
+    // logs that render ANSI from captured output.
+    if (process.env.FORCE_COLOR && process.env.FORCE_COLOR !== '0') {
+        return true;
+    }
+    return Boolean(process.stdout.isTTY);
+}
+function bold(text, enabled) {
+    return enabled ? `${ANSI.bold}${text}${ANSI.reset}` : text;
+}
+function severityColor(severity, text, enabled) {
+    if (!enabled) {
+        return text;
+    }
+    const codes = [];
+    switch (severity) {
+        case 'critical':
+            codes.push(ANSI.bold, ANSI.brightRed);
+            break;
+        case 'high':
+            codes.push(ANSI.bold, ANSI.red);
+            break;
+        case 'medium':
+            codes.push(ANSI.yellow);
+            break;
+        case 'low':
+            codes.push(ANSI.cyan);
+            break;
+        default:
+            return text;
+    }
+    return `${codes.join('')}${text}${ANSI.reset}`;
+}
+function ratingColor(rating, enabled) {
+    if (!enabled) {
+        return rating.toUpperCase();
+    }
+    if (rating === 'none') {
+        return `${ANSI.bold}${ANSI.green}NONE${ANSI.reset}`;
+    }
+    return severityColor(rating, rating.toUpperCase(), enabled);
 }
 function renderGithubAnnotations(report, pathPrefix) {
     if (report.findings.length === 0) {
