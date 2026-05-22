@@ -337,6 +337,33 @@ test('CLI reports Codex MCP server command drift against root MCP config', async
   assert.ok(report.matrix.some((row) => row.capability === 'MCP: github' && row.values.codex?.includes('@modelcontextprotocol/server-github@2.0.0')));
 });
 
+test('CLI parses multi-line Codex TOML args without producing false-positive mismatch', async () => {
+  // Regression for parseTomlEntries' line-by-line value reader.
+  // Root MCP and Codex declare identical github invocations, but Codex
+  // writes the args array across multiple lines. Pre-fix, the parser
+  // saw only `args = [`, lost the rest, and produced a high-severity
+  // mcp_command_mismatch finding because canonicalIdentity drifted.
+  const repo = join(testDir, 'fixtures', 'codex-multiline-args');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const mismatch = report.findings.filter(
+    (finding) => finding.kind === 'policy_mesh.mcp_command_mismatch'
+  );
+  assert.deepEqual(mismatch, [], 'expected no mcp_command_mismatch findings');
+  assert.equal(report.surfaceCount, 2);
+  // Both surfaces should expose a github MCP server with the full pinned command.
+  const githubRow = report.matrix.find((row) => row.capability === 'MCP: github');
+  assert.ok(githubRow);
+  assert.match(githubRow.values.codex, /@modelcontextprotocol\/server-github@1\.2\.3/);
+  assert.match(githubRow.values.root_mcp, /@modelcontextprotocol\/server-github@1\.2\.3/);
+});
+
 test('CLI does not flag mcp_command_mismatch on neutral -y flag drift between surfaces', async () => {
   // Regression for the PolicyMesh audit's false-positive class:
   // root MCP uses `npx -y <pkg>`, Cursor uses `npx <pkg>`. `-y` only

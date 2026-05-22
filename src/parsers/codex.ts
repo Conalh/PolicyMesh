@@ -119,7 +119,7 @@ function parseTomlEntries(text: string): TomlParseResult {
   const mcpDrafts = new Map<string, CodexMcpServerDraft>();
   let section = '';
 
-  const lines = text.split(/\r?\n/);
+  const lines = joinMultilineValues(text.split(/\r?\n/));
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const trimmed = line.trim();
@@ -187,6 +187,113 @@ function parseTomlEntries(text: string): TomlParseResult {
   }
 
   return { entries, mcpServers: buildCodexMcpServers(mcpDrafts) };
+}
+
+/**
+ * Pre-pass that collapses multi-line array and inline-table values onto
+ * their opening line so the line-oriented parser below sees a single
+ * logical assignment. Continuation lines are zeroed out so subsequent
+ * line numbers and section detection remain accurate.
+ *
+ * Real-world Codex configs frequently write `args = [\n  "-y",\n  "x"\n]`
+ * across multiple lines; before this pass, only the opening `[` reached
+ * `parseStringArrayValue`, which produced silent args loss and downstream
+ * mcp_command_mismatch false positives against the joined MCP surfaces.
+ */
+function joinMultilineValues(lines: string[]): string[] {
+  const result = [...lines];
+
+  for (let index = 0; index < result.length; index += 1) {
+    const line = result[index];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('[')) {
+      continue;
+    }
+
+    const keyMatch = /^([A-Za-z0-9_.-]+)\s*=\s*(.*)$/.exec(trimmed);
+    if (!keyMatch) {
+      continue;
+    }
+
+    const initialBalance = scanValueBalance(keyMatch[2]);
+    if (initialBalance.bracketDepth === 0 && initialBalance.braceDepth === 0) {
+      continue;
+    }
+
+    let buffer = line;
+    let bracketDepth = initialBalance.bracketDepth;
+    let braceDepth = initialBalance.braceDepth;
+    let cursor = index + 1;
+
+    while ((bracketDepth > 0 || braceDepth > 0) && cursor < result.length) {
+      const cont = result[cursor];
+      buffer += ' ' + cont.trim();
+      const contBalance = scanValueBalance(cont);
+      bracketDepth += contBalance.bracketDepth;
+      braceDepth += contBalance.braceDepth;
+      result[cursor] = '';
+      cursor += 1;
+    }
+
+    result[index] = buffer;
+    index = cursor - 1;
+  }
+
+  return result;
+}
+
+interface BalanceState {
+  bracketDepth: number;
+  braceDepth: number;
+}
+
+function scanValueBalance(value: string): BalanceState {
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let quote: '"' | "'" | undefined;
+  let escape = false;
+
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+
+    if (quote) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char === '\\' && quote === '"') {
+        escape = true;
+        continue;
+      }
+      if (char === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    // A '#' outside any quote begins a comment; the rest of the line
+    // (or buffer) is not part of the value balance.
+    if (char === '#') {
+      break;
+    }
+
+    if (char === '[') {
+      bracketDepth += 1;
+    } else if (char === ']') {
+      bracketDepth -= 1;
+    } else if (char === '{') {
+      braceDepth += 1;
+    } else if (char === '}') {
+      braceDepth -= 1;
+    }
+  }
+
+  return { bracketDepth, braceDepth };
 }
 
 function normalizeSection(section: string): string {
