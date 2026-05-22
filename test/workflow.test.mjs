@@ -78,6 +78,7 @@ test('CI workflow builds and tests PolicyMesh', async () => {
 
   assert.match(workflow, /npm ci/);
   assert.match(workflow, /npm run build/);
+  assert.match(workflow, /git diff --exit-code -- dist/);
   assert.match(workflow, /npm test/);
 });
 
