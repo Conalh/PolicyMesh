@@ -67,7 +67,7 @@ test('published Action runs the bundled CLI without installing or rebuilding its
   const trackedDistFiles = stdout.trim().split(/\r?\n/).filter(Boolean);
 
   assert.match(action, /node "\$GITHUB_ACTION_PATH\/dist\/index\.js" audit --repo/);
-  assert.doesNotMatch(action, /npm ci/);
+  assert.match(action, /npm ci .*--omit=dev/);
   assert.doesNotMatch(action, /npm run build/);
   assert.doesNotMatch(gitignore, /^dist\/\s*$/m);
   assert.ok(trackedDistFiles.includes('dist/index.js'));
