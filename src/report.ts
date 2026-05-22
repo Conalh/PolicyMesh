@@ -1,6 +1,10 @@
 import type { Finding, MeshReport, ReportFormat, SurfaceId } from './types.js';
 
-export function renderReport(report: MeshReport, format: ReportFormat): string {
+interface RenderOptions {
+  githubAnnotationPathPrefix?: string;
+}
+
+export function renderReport(report: MeshReport, format: ReportFormat, options: RenderOptions = {}): string {
   if (format === 'json') {
     return `${JSON.stringify(report, null, 2)}\n`;
   }
@@ -10,7 +14,7 @@ export function renderReport(report: MeshReport, format: ReportFormat): string {
   }
 
   if (format === 'github') {
-    return renderGithubAnnotations(report);
+    return renderGithubAnnotations(report, options.githubAnnotationPathPrefix);
   }
 
   return renderText(report);
@@ -81,7 +85,7 @@ function renderText(report: MeshReport): string {
   return `${lines.join('\n')}\n`;
 }
 
-function renderGithubAnnotations(report: MeshReport): string {
+function renderGithubAnnotations(report: MeshReport, pathPrefix?: string): string {
   if (report.findings.length === 0) {
     return '';
   }
@@ -91,7 +95,7 @@ function renderGithubAnnotations(report: MeshReport): string {
       const title = `PolicyMesh ${finding.severity} finding`;
       const message = `${finding.message} Surfaces: ${formatSurfaceList(finding.surfaces)}. Recommendation: ${finding.recommendation}`;
       return annotationLocations(finding).map((location) => {
-        const properties = [`file=${escapeProperty(location.file)}`];
+        const properties = [`file=${escapeProperty(prefixPath(location.file, pathPrefix))}`];
         if (location.line && location.line > 0) {
           properties.push(`line=${location.line}`);
         }
@@ -132,6 +136,18 @@ function annotationLocations(finding: Finding): Array<{ file: string; line?: num
   return finding.locations?.length
     ? finding.locations.map((location) => ({ file: location.file, line: location.line }))
     : [{ file: finding.file, line: finding.line }];
+}
+
+function prefixPath(file: string, prefix?: string): string {
+  if (!prefix) {
+    return normalizePath(file);
+  }
+
+  return `${normalizePath(prefix).replace(/\/$/, '')}/${normalizePath(file).replace(/^\.\//, '')}`;
+}
+
+function normalizePath(file: string): string {
+  return file.replaceAll('\\', '/');
 }
 
 function escapeMessage(value: string): string {
