@@ -155,8 +155,8 @@ PolicyMesh is intentionally small right now. If a warning is noisy, open a
 [false-positive report](https://github.com/Conalh/PolicyMesh/issues/new?template=false-positive.yml).
 If your team uses another agent config surface, open a
 [missing-surface request](https://github.com/Conalh/PolicyMesh/issues/new?template=missing-surface.yml).
-If your team is testing PolicyMesh across multiple repositories or needs org-level
-policy review, open a
+If your team is testing PolicyMesh across multiple repositories, needs org-level
+policy review, shared baselines, exception ownership, or cross-repo reports, open a
 [team validation signal](https://github.com/Conalh/PolicyMesh/issues/new?template=team-validation.yml).
 The paid-layer validation tracker is
 [issue #5](https://github.com/Conalh/PolicyMesh/issues/5); hosted SaaS work should wait for repeated team signals there.
