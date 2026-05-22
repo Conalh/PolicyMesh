@@ -30,6 +30,10 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Install PolicyMesh dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --omit=dev --no-audit --no-fund
     - name: Run PolicyMesh agent policy audit
       id: run
       shell: bash
