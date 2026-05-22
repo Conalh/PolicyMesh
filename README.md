@@ -43,6 +43,7 @@ Live demo PR: [Demo: cross-surface agent policy conflicts](https://github.com/Co
 That PR intentionally adds:
 
 - The same `github` MCP server with different launch commands in `.mcp.json` and `.cursor/mcp.json`.
+- A Codex MCP table in `.codex/config.toml` that disagrees with the other `github` MCP definitions.
 - An unpinned `@latest` MCP package in Cursor config.
 - Broad Claude allow rules with a narrow `.env` deny and no `PreToolUse` hook.
 - Codex network access and trusted project settings alongside the risky MCP setup.
@@ -63,6 +64,7 @@ That fixture intentionally includes:
 
 - The same `github` MCP server with different launch commands in `.mcp.json` and `.cursor/mcp.json`.
 - VS Code and Codeium/Windsurf MCP configs participating in the same cross-surface mismatch.
+- A Codex MCP table in `.codex/config.toml` participating in the same cross-surface mismatch.
 - An unpinned `@latest` MCP package in Cursor config.
 - Broad Claude allow rules with a narrow `.env` deny and no `PreToolUse` hook.
 - Codex network access and trusted project settings alongside the risky MCP setup.
