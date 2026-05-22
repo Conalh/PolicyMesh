@@ -15,7 +15,7 @@ export function configParseFinding(file: string, surface: SurfaceId, parseError:
   const syntax = surface === 'codex' ? 'TOML' : 'JSON';
 
   return {
-    kind: 'config_parse_error',
+    kind: 'policy_mesh.config_parse_error',
     severity: 'high',
     file,
     line: parseError.line,
