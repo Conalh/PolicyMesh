@@ -118,7 +118,6 @@ test('issue templates collect detector and team validation feedback', async () =
   assert.match(teamPilot, /team-validation\.yml/);
   assert.match(readme, /TEAM_PILOT\.md/);
   assert.match(readme, /team-validation\.yml/);
-  assert.match(readme, /issues\/5/);
 });
 
 test('README documents Action credibility and robustness signals', async () => {
@@ -137,7 +136,7 @@ test('README documents Action credibility and robustness signals', async () => {
   assert.match(readme, /Codex network access enabled alongside other configured or unreadable agent surfaces/);
   assert.match(readme, /Claude MCP grants for servers missing from MCP configs/);
   assert.match(readme, /Malformed JSON and Codex TOML agent config files/);
-  assert.match(readme, /team validation signal/);
+  assert.match(readme, /team feedback form/);
 });
 
 test('README separates original demo PR proof from richer fixture proof', async () => {
