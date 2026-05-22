@@ -142,13 +142,33 @@ The action runs the bundled CLI from the published tag and uploads nothing by de
 Pass `github-token: ${{ secrets.GITHUB_TOKEN }}` to have PolicyMesh post the Markdown report as a single PR comment that updates in place across pushes (rather than spamming a new comment per run):
 
 ```yaml
+permissions:
+  contents: read
+  pull-requests: write   # required only when using github-token
+
+jobs:
+  policymesh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
       - uses: Conalh/PolicyMesh@v0.1.18
         with:
           fail-on: none
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The token needs `pull-requests: write`. Without it, the action runs unchanged — step summary and warning annotations only.
+Without `github-token`, the action runs with the minimal `contents: read` permission — step summary and warning annotations only.
+
+### Optional: monorepo mode
+
+Set `recursive: true` to audit every sub-project with its own agent config independently. Findings keep their relative file paths so PR annotations land on the right line:
+
+```yaml
+      - uses: Conalh/PolicyMesh@v0.1.18
+        with:
+          fail-on: none
+          recursive: true
+```
 Missing-server findings emit annotations on configured surfaces that are missing MCP servers, not only on the surface where the server is defined.
 For subdirectory audits using the `repo` input, GitHub annotation file paths are prefixed back to the workflow workspace so warnings point at the checked-out files.
 

@@ -18,6 +18,9 @@ export async function main(argv = process.argv.slice(2)) {
     if (argv[0] === 'fix') {
         return runFix(argv.slice(1));
     }
+    if (argv[0] === 'render') {
+        return runRender(argv.slice(1));
+    }
     process.stderr.write(`Unknown command: ${argv[0]}\n`);
     return 2;
 }
@@ -173,9 +176,77 @@ if (invokedPath) {
 function usage() {
     return [
         'Usage: policymesh audit --repo <path> [--format text|markdown|json|github] [--recursive]',
-        `       ${fixUsage()}`
+        `       ${fixUsage()}`,
+        `       ${renderUsage()}`
     ].join('\n');
 }
 function fixUsage() {
     return 'policymesh fix --repo <path> --canonical <surface> [--write]';
+}
+function renderUsage() {
+    return 'policymesh render --input <json-file> --format text|markdown|json|github [--annotation-path-prefix <path>]';
+}
+function parseRenderArgs(argv) {
+    let input;
+    let format;
+    let annotationPathPrefix;
+    for (let index = 0; index < argv.length; index += 1) {
+        const arg = argv[index];
+        const value = argv[index + 1];
+        if (arg === '--input') {
+            if (!value || value.startsWith('--')) {
+                return { ok: false, error: 'Missing value for --input' };
+            }
+            input = value;
+            index += 1;
+        }
+        else if (arg === '--format') {
+            if (!isReportFormat(value)) {
+                return { ok: false, error: `Invalid format: ${value ?? ''}` };
+            }
+            format = value;
+            index += 1;
+        }
+        else if (arg === '--annotation-path-prefix') {
+            if (!value) {
+                return { ok: false, error: 'Missing value for --annotation-path-prefix' };
+            }
+            annotationPathPrefix = value;
+            index += 1;
+        }
+        else {
+            return { ok: false, error: `Unknown argument: ${arg}` };
+        }
+    }
+    if (!input) {
+        return { ok: false, error: 'Missing required argument: --input <json-file>' };
+    }
+    if (!format) {
+        return { ok: false, error: 'Missing required argument: --format <fmt>' };
+    }
+    return { ok: true, input, format, annotationPathPrefix };
+}
+async function runRender(argv) {
+    const parsed = parseRenderArgs(argv);
+    if (!parsed.ok) {
+        process.stderr.write(`${parsed.error}\n${renderUsage()}\n`);
+        return 2;
+    }
+    const { readFile } = await import('node:fs/promises');
+    let report;
+    try {
+        report = JSON.parse(await readFile(parsed.input, 'utf8'));
+    }
+    catch (error) {
+        if (isNodeError(error) && error.code === 'ENOENT') {
+            process.stderr.write(`Input report not found: ${parsed.input}\n`);
+            return 2;
+        }
+        process.stderr.write(`Could not read report JSON at ${parsed.input}: ${error.message}\n`);
+        return 2;
+    }
+    process.stdout.write(renderReport(report, parsed.format, {
+        githubAnnotationPathPrefix: parsed.annotationPathPrefix
+    }));
+    return 0;
 }

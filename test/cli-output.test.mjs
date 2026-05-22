@@ -754,6 +754,83 @@ async function copyFixture(srcDir, destDir) {
   }
 }
 
+test('CLI render reproduces audit output from saved JSON without re-running detectors', async () => {
+  const repo = join(testDir, 'fixtures', 'conflicted');
+  const jsonPath = join(await mkdtemp(join(tmpdir(), 'policymesh-render-')), 'report.json');
+
+  try {
+    const { stdout: jsonOut } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    await (await import('node:fs/promises')).writeFile(jsonPath, jsonOut, 'utf8');
+
+    // render --format json round-trips identically.
+    const rendered = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'render', '--input', jsonPath, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    assert.equal(rendered.stdout, jsonOut);
+
+    // render --format markdown produces the same markdown a direct audit would.
+    const directMd = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', repo, '--format', 'markdown'],
+      { cwd: packageRoot }
+    );
+    const renderedMd = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'render', '--input', jsonPath, '--format', 'markdown'],
+      { cwd: packageRoot }
+    );
+    assert.equal(renderedMd.stdout, directMd.stdout);
+  } finally {
+    await rm(jsonPath, { force: true });
+  }
+});
+
+test('CLI render --annotation-path-prefix prepends the prefix in github annotations', async () => {
+  const repo = join(testDir, 'fixtures', 'conflicted');
+  const tmp = await mkdtemp(join(tmpdir(), 'policymesh-render-'));
+  const jsonPath = join(tmp, 'report.json');
+
+  try {
+    const { stdout: jsonOut } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    await (await import('node:fs/promises')).writeFile(jsonPath, jsonOut, 'utf8');
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'render', '--input', jsonPath, '--format', 'github', '--annotation-path-prefix', 'sub/repo'],
+      { cwd: packageRoot }
+    );
+
+    assert.match(stdout, /^::warning file=sub\/repo\//m);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI render rejects missing input file with a clear error', async () => {
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'render', '--input', '/nope/missing.json', '--format', 'json'],
+      { cwd: packageRoot }
+    ),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.match(error.stderr, /Input report not found/);
+      return true;
+    }
+  );
+});
+
 test('CLI fix dry-run lists planned enabled-state edits without modifying files', async () => {
   const repo = join(testDir, 'fixtures', 'fix-enabled-mismatch');
   const before = await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8');

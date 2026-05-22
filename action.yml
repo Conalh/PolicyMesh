@@ -23,6 +23,15 @@ inputs:
       a new comment each run. Leave unset to keep behavior unchanged.
     required: false
     default: ''
+  recursive:
+    description: >-
+      When 'true', PolicyMesh walks the repo tree and audits every
+      sub-project with its own agent config independently (monorepo
+      mode). Findings keep their relative file paths so CI annotations
+      land on the right line. Defaults to false to preserve existing
+      single-project behaviour.
+    required: false
+    default: 'false'
 
 outputs:
   rating:
@@ -49,6 +58,7 @@ runs:
         MESH_REPO: ${{ inputs.repo }}
         MESH_FAIL_ON: ${{ inputs.fail-on }}
         MESH_GITHUB_TOKEN: ${{ inputs.github-token }}
+        MESH_RECURSIVE: ${{ inputs.recursive }}
       run: |
         set -euo pipefail
 
@@ -60,9 +70,26 @@ runs:
         report_file="${RUNNER_TEMP:-.}/policymesh-report.md"
         json_file="${RUNNER_TEMP:-.}/policymesh-report.json"
 
-        node "$GITHUB_ACTION_PATH/dist/index.js" audit --repo "$repo" --format markdown | tee "$report_file"
-        node "$GITHUB_ACTION_PATH/dist/index.js" audit --repo "$repo" --format json > "$json_file"
-        node "$GITHUB_ACTION_PATH/dist/index.js" audit --repo "$repo" --format github
+        # One audit pass — render markdown / github annotations from the
+        # saved JSON rather than re-running the full audit per format.
+        audit_args=(audit --repo "$repo" --format json)
+        if [ "${MESH_RECURSIVE:-false}" = "true" ]; then
+          audit_args+=(--recursive)
+        fi
+        node "$GITHUB_ACTION_PATH/dist/index.js" "${audit_args[@]}" > "$json_file"
+
+        # GitHub annotation file paths normally get prefixed back to the
+        # workflow workspace when --repo points at a sub-directory; audit
+        # used to do this implicitly. Now that we render from saved JSON
+        # we compute the prefix once here and pass it to render.
+        annotation_prefix="$(node -e 'const {relative,resolve}=require("node:path");const p=relative(process.cwd(),resolve(process.argv[1]));process.stdout.write(p && p !== "." && !p.startsWith("..") ? p : "")' "$repo")"
+
+        node "$GITHUB_ACTION_PATH/dist/index.js" render --input "$json_file" --format markdown | tee "$report_file"
+        if [ -n "$annotation_prefix" ]; then
+          node "$GITHUB_ACTION_PATH/dist/index.js" render --input "$json_file" --format github --annotation-path-prefix "$annotation_prefix"
+        else
+          node "$GITHUB_ACTION_PATH/dist/index.js" render --input "$json_file" --format github
+        fi
 
         if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
           cat "$report_file" >> "$GITHUB_STEP_SUMMARY"

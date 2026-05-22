@@ -70,6 +70,26 @@ test('action.yml supports optional sticky PR summary comment via github-token in
   assert.match(action, /GH_TOKEN="\$MESH_GITHUB_TOKEN" gh api/);
 });
 
+test('action.yml exposes the --recursive flag as the "recursive" input', async () => {
+  const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
+
+  assert.match(action, /recursive:\s*\n\s*description:/);
+  assert.match(action, /MESH_RECURSIVE:\s*\$\{\{\s*inputs\.recursive\s*\}\}/);
+  // Gating logic appends --recursive to the audit args only when the input is true.
+  assert.match(action, /MESH_RECURSIVE.*=.*"true"/);
+});
+
+test('action.yml runs a single audit pass and renders the other formats from saved JSON', async () => {
+  const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
+
+  // Exactly one audit invocation; render handles the other formats.
+  const auditInvocations = action.match(/index\.js" .* audit /g) ?? [];
+  assert.equal(auditInvocations.length, 0, 'audit args are now built into an array; no inline audit invocations expected');
+  assert.match(action, /index\.js" "\$\{audit_args\[@\]\}" > "\$json_file"/);
+  assert.match(action, /index\.js" render --input "\$json_file" --format markdown/);
+  assert.match(action, /index\.js" render --input "\$json_file" --format github/);
+});
+
 test('published Action runs the bundled CLI without installing or rebuilding itself', async () => {
   const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
   const gitignore = await readFile(join(packageRoot, '.gitignore'), 'utf8');
@@ -80,7 +100,10 @@ test('published Action runs the bundled CLI without installing or rebuilding its
   );
   const trackedDistFiles = stdout.trim().split(/\r?\n/).filter(Boolean);
 
-  assert.match(action, /node "\$GITHUB_ACTION_PATH\/dist\/index\.js" audit --repo/);
+  // Audit args are built into a bash array; literal "audit --repo" still
+  // appears in that initializer, just not directly after the node call.
+  assert.match(action, /audit_args=\(audit --repo "\$repo"/);
+  assert.match(action, /node "\$GITHUB_ACTION_PATH\/dist\/index\.js" "\$\{audit_args\[@\]\}"/);
   assert.match(action, /npm ci .*--omit=dev/);
   assert.doesNotMatch(action, /npm run build/);
   assert.doesNotMatch(gitignore, /^dist\/\s*$/m);
