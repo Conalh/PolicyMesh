@@ -14,6 +14,8 @@ interface McpServerRaw {
   sourceText?: string;
   command?: string;
   args?: string[];
+  enabled?: boolean;
+  disabled?: boolean;
   env?: Record<string, string>;
   url?: string;
   serverUrl?: string;
@@ -84,6 +86,8 @@ async function readMcpServers(
       sourceText: source.text,
       command: typeof value.command === 'string' ? value.command : undefined,
       args: Array.isArray(value.args) ? value.args.filter((arg): arg is string => typeof arg === 'string') : undefined,
+      enabled: typeof value.enabled === 'boolean' ? value.enabled : undefined,
+      disabled: typeof value.disabled === 'boolean' ? value.disabled : undefined,
       env: readStringMap(value.env),
       url: typeof value.url === 'string' ? value.url : undefined,
       serverUrl: typeof value.serverUrl === 'string' ? value.serverUrl : undefined
@@ -97,6 +101,7 @@ async function readMcpServers(
     servers.push({
       name,
       command,
+      enabled: serverEnabled(raw),
       env: raw.env ?? {},
       unpinned: isUnpinnedCommand(raw),
       line: raw.line,
@@ -129,6 +134,13 @@ function readStringMap(value: unknown): Record<string, string> | undefined {
 
 export function serverCommand(server: McpServerRaw): string {
   return [server.command, ...(server.args ?? []), server.url, server.serverUrl].filter(Boolean).join(' ');
+}
+
+function serverEnabled(server: McpServerRaw): boolean {
+  if (server.disabled !== undefined) {
+    return !server.disabled;
+  }
+  return server.enabled !== false;
 }
 
 export function isUnpinnedCommand(server: McpServerRaw): boolean {

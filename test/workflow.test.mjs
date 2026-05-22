@@ -7,15 +7,15 @@ import { dirname, join } from 'node:path';
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(testDir, '..');
 
-test('release metadata is prepared for v0.1.9 Action users', async () => {
+test('release metadata is prepared for v0.1.10 Action users', async () => {
   const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
   const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
 
-  assert.equal(packageJson.version, '0.1.9');
-  assert.equal(packageLock.version, '0.1.9');
-  assert.equal(packageLock.packages[''].version, '0.1.9');
-  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.9/);
+  assert.equal(packageJson.version, '0.1.10');
+  assert.equal(packageLock.version, '0.1.10');
+  assert.equal(packageLock.packages[''].version, '0.1.10');
+  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.10/);
 });
 
 test('package metadata supports OSS discovery', async () => {
@@ -86,6 +86,7 @@ test('README documents Action credibility and robustness signals', async () => {
 
   assert.match(readme, /VS Code and Codeium\/Windsurf MCP configs/);
   assert.match(readme, /configured MCP surfaces with empty server maps/);
+  assert.match(readme, /MCP server enabled\/disabled drift across surfaces/);
   assert.match(readme, /MCP server environment drift across surfaces/);
   assert.match(readme, /Codex network access enabled alongside other configured or unreadable agent surfaces/);
   assert.match(readme, /Claude MCP grants for servers missing from MCP configs/);

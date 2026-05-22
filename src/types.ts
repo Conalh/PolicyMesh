@@ -29,6 +29,7 @@ export interface FindingLocation {
 export interface McpServer {
   name: string;
   command: string;
+  enabled: boolean;
   env: Record<string, string>;
   unpinned: boolean;
   line?: number;

@@ -215,6 +215,27 @@ test('CLI reports servers missing from configured but empty MCP surfaces', async
   assert.match(report.findings[0].message, /missing from cursor_mcp/);
 });
 
+test('CLI reports MCP server enabled-state drift across surfaces', async () => {
+  const repo = join(testDir, 'fixtures', 'mcp-enabled-mismatch');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'medium');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'mcp_enabled_mismatch');
+  assert.equal(report.findings[0].severity, 'medium');
+  assert.equal(report.findings[0].subject, 'github');
+  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'cursor_mcp']);
+  assert.match(report.findings[0].message, /enabled in root_mcp/);
+  assert.match(report.findings[0].message, /disabled in cursor_mcp/);
+});
+
 test('CLI reports MCP server environment drift without leaking values', async () => {
   const repo = join(testDir, 'fixtures', 'mcp-env-mismatch');
 
