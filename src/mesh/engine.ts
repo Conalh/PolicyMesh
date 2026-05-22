@@ -8,6 +8,7 @@ export function runMeshRules(policies: RepoPolicies): Finding[] {
     ...detectMcpServerMissing(policies),
     ...detectMcpEnabledMismatch(policies),
     ...detectMcpEnvMismatch(policies),
+    ...detectMcpHeaderMismatch(policies),
     ...detectMcpUnpinned(policies),
     ...detectClaudeMcpGrantMissingServer(policies),
     ...detectClaudeDenyAllowOverlap(policies),
@@ -194,6 +195,46 @@ function detectMcpEnvMismatch(policies: RepoPolicies): Finding[] {
         ? `MCP server "${name}" environment variable names differ across surfaces: ${keySummary}.`
         : `MCP server "${name}" environment values differ across surfaces for ${differingKeys.join(', ')}.`,
       recommendation: 'Align MCP server environment variable names and secret sources across surfaces, or document why each agent needs different wiring.',
+      surfaces: uniqueSurfaces(servers.map((server) => server.surfaceId))
+    });
+  }
+
+  return findings;
+}
+
+function detectMcpHeaderMismatch(policies: RepoPolicies): Finding[] {
+  const findings: Finding[] = [];
+  const byName = groupMcpServersByName(policies);
+
+  for (const [name, servers] of byName) {
+    if (servers.length < 2) {
+      continue;
+    }
+
+    const headerFingerprints = new Set(servers.map((server) => headerFingerprint(server.headers)));
+    if (headerFingerprints.size <= 1) {
+      continue;
+    }
+
+    const headerKeyFingerprints = new Set(servers.map((server) => headerKeyFingerprint(server.headers)));
+    const keySummary = summarizeHeaderKeys(servers);
+    const primary = servers[0];
+    const differingKeys = differingHeaderKeys(servers);
+    findings.push({
+      kind: 'mcp_header_mismatch',
+      severity: 'medium',
+      file: primary.file,
+      line: primary.line,
+      locations: servers.map((server) => ({
+        file: server.file,
+        line: server.line,
+        surface: server.surfaceId
+      })),
+      subject: name,
+      message: headerKeyFingerprints.size > 1
+        ? `MCP server "${name}" header names differ across surfaces: ${keySummary}.`
+        : `MCP server "${name}" header values differ across surfaces for ${differingKeys.join(', ')}.`,
+      recommendation: 'Align remote MCP server header names and secret sources across surfaces, or document why each agent needs different remote credentials.',
       surfaces: uniqueSurfaces(servers.map((server) => server.surfaceId))
     });
   }
@@ -536,6 +577,34 @@ function summarizeEnvKeys(servers: McpServer[]): string {
     .map((server) => {
       const keys = uniqueSorted(Object.keys(server.env));
       return `${server.surfaceId} uses ${keys.length > 0 ? keys.join(', ') : 'no env variables'}`;
+    })
+    .join('; ');
+}
+
+function headerFingerprint(headers: Record<string, string>): string {
+  return Object.entries(headers)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+}
+
+function headerKeyFingerprint(headers: Record<string, string>): string {
+  return uniqueSorted(Object.keys(headers)).join('\n');
+}
+
+function differingHeaderKeys(servers: McpServer[]): string[] {
+  const keys = uniqueSorted(servers.flatMap((server) => Object.keys(server.headers)));
+  return keys.filter((key) => {
+    const values = new Set(servers.map((server) => server.headers[key] ?? '<unset>'));
+    return values.size > 1;
+  });
+}
+
+function summarizeHeaderKeys(servers: McpServer[]): string {
+  return servers
+    .map((server) => {
+      const keys = uniqueSorted(Object.keys(server.headers));
+      return `${server.surfaceId} uses ${keys.length > 0 ? keys.join(', ') : 'no headers'}`;
     })
     .join('; ');
 }

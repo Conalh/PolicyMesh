@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "analytics": {
+      "serverUrl": "https://mcp.example.test/sse",
+      "headers": {
+        "Authorization": "Bearer root-header-secret"
+      }
+    }
+  }
+}

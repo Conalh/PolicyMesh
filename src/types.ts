@@ -31,6 +31,7 @@ export interface McpServer {
   command: string;
   enabled: boolean;
   env: Record<string, string>;
+  headers: Record<string, string>;
   unpinned: boolean;
   line?: number;
   file: string;

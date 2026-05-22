@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.10
+      - uses: Conalh/PolicyMesh@v0.1.11
         with:
           fail-on: none
 ```
@@ -127,6 +127,7 @@ PolicyMesh v0 detects:
 - MCP servers missing from configured MCP surfaces with empty server maps.
 - MCP server enabled/disabled drift across surfaces.
 - MCP server environment drift across surfaces without reporting secret values.
+- MCP remote header drift across surfaces without reporting secret values.
 - Unpinned MCP launch commands such as `@latest`.
 - Claude broad allow rules overlapping with specific deny rules.
 - Broad Claude allow rules without a `PreToolUse` guard hook.
