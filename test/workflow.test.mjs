@@ -103,3 +103,15 @@ test('README documents Action credibility and robustness signals', async () => {
   assert.match(readme, /Malformed JSON and Codex TOML agent config files/);
   assert.match(readme, /team validation signal/);
 });
+
+test('README separates original demo PR proof from richer fixture proof', async () => {
+  const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
+  const demoSection = readme.slice(readme.indexOf('## Demo'), readme.indexOf('## Local Use'));
+  const originalProof = demoSection.slice(0, demoSection.indexOf('The local fixture extends that proof with:'));
+
+  assert.match(demoSection, /Original demo PR:/);
+  assert.match(demoSection, /The original PR intentionally adds:/);
+  assert.match(demoSection, /The local fixture extends that proof with:/);
+  assert.doesNotMatch(originalProof, /Codex MCP table/);
+  assert.doesNotMatch(originalProof, /VS Code and Codeium\/Windsurf/);
+});
