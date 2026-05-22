@@ -305,6 +305,26 @@ test('CLI reports MCP server header drift without leaking values', async () => {
   assert.doesNotMatch(stdout, /vscode-header-secret/);
 });
 
+test('CLI reports Codex MCP server command drift against root MCP config', async () => {
+  const repo = join(testDir, 'fixtures', 'codex-mcp-command-mismatch');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'high');
+  assert.equal(report.findingCount, 1);
+  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings[0].kind, 'mcp_command_mismatch');
+  assert.equal(report.findings[0].subject, 'github');
+  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'codex']);
+  assert.ok(report.findings[0].locations.some((location) => location.file === '.codex/config.toml' && location.surface === 'codex'));
+  assert.ok(report.matrix.some((row) => row.capability === 'MCP: github' && row.values.codex?.includes('@modelcontextprotocol/server-github@2.0.0')));
+});
+
 test('CLI reports only differing MCP header value keys without leaking values', async () => {
   const repo = join(testDir, 'fixtures', 'mcp-header-value-mismatch');
 
