@@ -123,16 +123,16 @@ test('CLI conflicted fixture returns high rating with expected kinds', async () 
   assert.ok(report.findingCount >= 5);
 
   const kinds = report.findings.map((finding) => finding.kind);
-  assert.ok(kinds.includes('mcp_command_mismatch'));
-  assert.ok(kinds.includes('mcp_unpinned'));
-  assert.ok(kinds.includes('claude_deny_allow_overlap'));
-  assert.ok(kinds.includes('claude_broad_allow_no_guard'));
-  assert.ok(kinds.includes('codex_network_without_review'));
-  assert.ok(kinds.includes('codex_trusted_with_risky_mcp'));
-  assert.ok(kinds.includes('codex_claude_posture_gap'));
+  assert.ok(kinds.includes('policy_mesh.mcp_command_mismatch'));
+  assert.ok(kinds.includes('policy_mesh.mcp_unpinned'));
+  assert.ok(kinds.includes('policy_mesh.claude_deny_allow_overlap'));
+  assert.ok(kinds.includes('policy_mesh.claude_broad_allow_no_guard'));
+  assert.ok(kinds.includes('policy_mesh.codex_network_without_review'));
+  assert.ok(kinds.includes('policy_mesh.codex_trusted_with_risky_mcp'));
+  assert.ok(kinds.includes('policy_mesh.codex_claude_posture_gap'));
 
   const githubMismatch = report.findings.find(
-    (finding) => finding.kind === 'mcp_command_mismatch' && finding.subject === 'github'
+    (finding) => finding.kind === 'policy_mesh.mcp_command_mismatch' && finding.subject === 'github'
   );
   assert.ok(githubMismatch);
   assert.ok(githubMismatch.surfaces.includes('codex'));
@@ -153,7 +153,7 @@ test('CLI reports malformed agent config instead of crashing', async () => {
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 1);
   assert.ok(report.effectiveUnion.includes('1 unreadable agent config'));
-  assert.equal(report.findings[0].kind, 'config_parse_error');
+  assert.equal(report.findings[0].kind, 'policy_mesh.config_parse_error');
   assert.equal(report.findings[0].file, '.cursor/mcp.json');
   assert.match(report.findings[0].message, /Could not parse Cursor MCP config/);
 });
@@ -172,7 +172,7 @@ test('CLI reports malformed Codex config instead of hiding the surface', async (
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 1);
   assert.ok(report.effectiveUnion.includes('1 unreadable agent config'));
-  assert.equal(report.findings[0].kind, 'config_parse_error');
+  assert.equal(report.findings[0].kind, 'policy_mesh.config_parse_error');
   assert.equal(report.findings[0].file, '.codex/config.toml');
   assert.equal(report.findings[0].line, 1);
   assert.match(report.findings[0].message, /Could not parse Codex config/);
@@ -192,7 +192,7 @@ test('CLI reports Claude MCP grants whose server is not defined in MCP configs',
   assert.equal(report.rating, 'medium');
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'claude_mcp_grant_missing_server');
+  assert.equal(report.findings[0].kind, 'policy_mesh.claude_mcp_grant_missing_server');
   assert.equal(report.findings[0].severity, 'medium');
   assert.equal(report.findings[0].file, '.claude/settings.json');
   assert.equal(report.findings[0].line, 4);
@@ -215,7 +215,7 @@ test('CLI reports servers missing from configured but empty MCP surfaces', async
   assert.equal(report.rating, 'low');
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'mcp_server_missing');
+  assert.equal(report.findings[0].kind, 'policy_mesh.mcp_server_missing');
   assert.equal(report.findings[0].severity, 'low');
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'cursor_mcp']);
@@ -237,7 +237,7 @@ test('CLI reports MCP server enabled-state drift across surfaces', async () => {
   assert.equal(report.rating, 'medium');
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'mcp_enabled_mismatch');
+  assert.equal(report.findings[0].kind, 'policy_mesh.mcp_enabled_mismatch');
   assert.equal(report.findings[0].severity, 'medium');
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'cursor_mcp']);
@@ -259,7 +259,7 @@ test('CLI reports MCP server environment drift without leaking values', async ()
   assert.equal(report.rating, 'medium');
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'mcp_env_mismatch');
+  assert.equal(report.findings[0].kind, 'policy_mesh.mcp_env_mismatch');
   assert.equal(report.findings[0].severity, 'medium');
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'vscode_mcp']);
@@ -284,7 +284,7 @@ test('CLI reports only differing MCP environment value keys without leaking valu
   assert.equal(report.rating, 'medium');
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'mcp_env_mismatch');
+  assert.equal(report.findings[0].kind, 'policy_mesh.mcp_env_mismatch');
   assert.match(report.findings[0].message, /environment values differ/);
   assert.match(report.findings[0].message, /GITHUB_TOKEN/);
   assert.doesNotMatch(report.findings[0].message, /SHARED_TIMEOUT/);
@@ -305,7 +305,7 @@ test('CLI reports MCP server header drift without leaking values', async () => {
   assert.equal(report.rating, 'medium');
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'mcp_header_mismatch');
+  assert.equal(report.findings[0].kind, 'policy_mesh.mcp_header_mismatch');
   assert.equal(report.findings[0].severity, 'medium');
   assert.equal(report.findings[0].subject, 'analytics');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'vscode_mcp']);
@@ -330,7 +330,7 @@ test('CLI reports Codex MCP server command drift against root MCP config', async
   assert.equal(report.rating, 'high');
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'mcp_command_mismatch');
+  assert.equal(report.findings[0].kind, 'policy_mesh.mcp_command_mismatch');
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'codex']);
   assert.ok(report.findings[0].locations.some((location) => location.file === '.codex/config.toml' && location.surface === 'codex'));
@@ -355,7 +355,7 @@ test('CLI does not flag mcp_command_mismatch on neutral -y flag drift between su
   const report = JSON.parse(stdout);
 
   const mismatchFindings = report.findings.filter(
-    (finding) => finding.kind === 'mcp_command_mismatch'
+    (finding) => finding.kind === 'policy_mesh.mcp_command_mismatch'
   );
   assert.deepEqual(mismatchFindings, [], 'expected no mcp_command_mismatch findings');
   assert.equal(report.surfaceCount, 2);
@@ -374,7 +374,7 @@ test('CLI reports Codeium plugin MCP command drift against root MCP config', asy
   assert.equal(report.rating, 'high');
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'mcp_command_mismatch');
+  assert.equal(report.findings[0].kind, 'policy_mesh.mcp_command_mismatch');
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'codeium_mcp']);
   assert.ok(report.findings[0].locations.some((location) => location.file === '.codeium/mcp_config.json' && location.surface === 'codeium_mcp'));
@@ -394,7 +394,7 @@ test('CLI reports only differing MCP header value keys without leaking values', 
   assert.equal(report.rating, 'medium');
   assert.equal(report.findingCount, 1);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'mcp_header_mismatch');
+  assert.equal(report.findings[0].kind, 'policy_mesh.mcp_header_mismatch');
   assert.match(report.findings[0].message, /header values differ/);
   assert.match(report.findings[0].message, /Authorization/);
   assert.doesNotMatch(report.findings[0].message, /X-Org/);
@@ -415,9 +415,9 @@ test('CLI reports Codex network access alongside unreadable agent surfaces', asy
   assert.equal(report.rating, 'high');
   assert.equal(report.findingCount, 2);
   assert.equal(report.surfaceCount, 2);
-  assert.equal(report.findings[0].kind, 'config_parse_error');
+  assert.equal(report.findings[0].kind, 'policy_mesh.config_parse_error');
   assert.equal(report.findings[0].file, '.cursor/mcp.json');
-  assert.equal(report.findings[1].kind, 'codex_network_without_review');
+  assert.equal(report.findings[1].kind, 'policy_mesh.codex_network_without_review');
   assert.equal(report.findings[1].severity, 'medium');
   assert.equal(report.findings[1].file, '.codex/config.toml');
   assert.equal(report.findings[1].line, 1);

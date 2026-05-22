@@ -42,7 +42,7 @@ function detectClaudeMcpGrantMissingServer(policies: RepoPolicies): Finding[] {
     }
 
     findings.push({
-      kind: 'claude_mcp_grant_missing_server',
+      kind: 'policy_mesh.claude_mcp_grant_missing_server',
       severity: 'medium',
       file: claude.file,
       line,
@@ -83,7 +83,7 @@ function detectMcpCommandMismatch(policies: RepoPolicies): Finding[] {
       .join(' vs ');
     const primary = servers[0];
     findings.push({
-      kind: 'mcp_command_mismatch',
+      kind: 'policy_mesh.mcp_command_mismatch',
       severity: 'high',
       file: primary.file,
       line: primary.line,
@@ -121,7 +121,7 @@ function detectMcpServerMissing(policies: RepoPolicies): Finding[] {
 
     const primary = servers[0];
     findings.push({
-      kind: 'mcp_server_missing',
+      kind: 'policy_mesh.mcp_server_missing',
       severity: 'low',
       file: primary.file,
       line: primary.line,
@@ -162,7 +162,7 @@ function detectMcpEnabledMismatch(policies: RepoPolicies): Finding[] {
 
     const primary = servers[0];
     findings.push({
-      kind: 'mcp_enabled_mismatch',
+      kind: 'policy_mesh.mcp_enabled_mismatch',
       severity: 'medium',
       file: primary.file,
       line: primary.line,
@@ -200,7 +200,7 @@ function detectMcpEnvMismatch(policies: RepoPolicies): Finding[] {
     const primary = servers[0];
     const differingKeys = differingEnvKeys(servers);
     findings.push({
-      kind: 'mcp_env_mismatch',
+      kind: 'policy_mesh.mcp_env_mismatch',
       severity: 'medium',
       file: primary.file,
       line: primary.line,
@@ -240,7 +240,7 @@ function detectMcpHeaderMismatch(policies: RepoPolicies): Finding[] {
     const primary = servers[0];
     const differingKeys = differingHeaderKeys(servers);
     findings.push({
-      kind: 'mcp_header_mismatch',
+      kind: 'policy_mesh.mcp_header_mismatch',
       severity: 'medium',
       file: primary.file,
       line: primary.line,
@@ -271,7 +271,7 @@ function detectMcpUnpinned(policies: RepoPolicies): Finding[] {
       }
 
       findings.push({
-        kind: 'mcp_unpinned',
+        kind: 'policy_mesh.mcp_unpinned',
         severity: 'medium',
         file: server.file,
         line: server.line,
@@ -303,7 +303,7 @@ function detectClaudeDenyAllowOverlap(policies: RepoPolicies): Finding[] {
   for (const deny of sensitiveDenies) {
     const line = claude.deny.get(deny);
     findings.push({
-      kind: 'claude_deny_allow_overlap',
+      kind: 'policy_mesh.claude_deny_allow_overlap',
       severity: 'medium',
       file: claude.file,
       line,
@@ -336,7 +336,7 @@ function detectClaudeBroadAllowNoGuard(policies: RepoPolicies): Finding[] {
 
   const [primaryAllow, line] = broadAllows[0];
   findings.push({
-    kind: 'claude_broad_allow_no_guard',
+    kind: 'policy_mesh.claude_broad_allow_no_guard',
     severity: 'medium',
     file: claude.file,
     line,
@@ -361,7 +361,7 @@ function detectCodexNetworkWithoutReview(policies: RepoPolicies): Finding[] {
   }
 
   return [{
-    kind: 'codex_network_without_review',
+    kind: 'policy_mesh.codex_network_without_review',
     severity: 'medium',
     file: codex.file,
     line: codex.networkLine,
@@ -385,7 +385,7 @@ function detectCodexTrustedWithRiskyMcp(policies: RepoPolicies): Finding[] {
   if (unpinned.length > 0 || hasMismatch) {
     const risky = unpinned[0];
     findings.push({
-      kind: 'codex_trusted_with_risky_mcp',
+      kind: 'policy_mesh.codex_trusted_with_risky_mcp',
       severity: 'high',
       file: risky?.file ?? codex.file,
       line: risky?.line ?? codex.trustLine,
@@ -424,7 +424,7 @@ function detectCodexClaudePostureGap(policies: RepoPolicies): Finding[] {
   }
 
   return [{
-    kind: 'codex_claude_posture_gap',
+    kind: 'policy_mesh.codex_claude_posture_gap',
     severity: 'medium',
     file: codex.file,
     line: codex.sandboxLine,
