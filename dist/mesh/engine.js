@@ -50,16 +50,23 @@ function detectMcpCommandMismatch(policies) {
     const findings = [];
     const byName = groupMcpServersByName(policies);
     for (const [name, servers] of byName) {
-        const commands = new Map();
+        // Group by canonical identity, not raw command string, so neutral
+        // differences (npx -y vs npx, .cmd/.exe suffix, flag reordering)
+        // don't produce false-positive mcp_command_mismatch findings.
+        const byIdentity = new Map();
         for (const server of servers) {
-            const existing = commands.get(server.command) ?? [];
+            const existing = byIdentity.get(server.canonicalIdentity) ?? [];
             existing.push(server);
-            commands.set(server.command, existing);
+            byIdentity.set(server.canonicalIdentity, existing);
         }
-        if (commands.size <= 1) {
+        if (byIdentity.size <= 1) {
             continue;
         }
-        const commandList = [...commands.keys()].map((cmd) => `"${cmd}"`).join(' vs ');
+        // Message still shows the user-visible commands so the finding is
+        // actionable — even though grouping was on canonical identity.
+        const commandList = [...new Set(servers.map((s) => s.command))]
+            .map((cmd) => `"${cmd}"`)
+            .join(' vs ');
         const primary = servers[0];
         findings.push({
             kind: 'mcp_command_mismatch',

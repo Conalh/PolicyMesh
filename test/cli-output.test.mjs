@@ -337,6 +337,30 @@ test('CLI reports Codex MCP server command drift against root MCP config', async
   assert.ok(report.matrix.some((row) => row.capability === 'MCP: github' && row.values.codex?.includes('@modelcontextprotocol/server-github@2.0.0')));
 });
 
+test('CLI does not flag mcp_command_mismatch on neutral -y flag drift between surfaces', async () => {
+  // Regression for the PolicyMesh audit's false-positive class:
+  // root MCP uses `npx -y <pkg>`, Cursor uses `npx <pkg>`. `-y` only
+  // suppresses npx's install prompt — it doesn't change what runs.
+  // Pre-fix, this fixture produced a high-severity mcp_command_mismatch
+  // because the detector grouped by the raw joined command string.
+  // Post-fix, the detector groups by normalizeMcpCommand canonical
+  // identity, which drops `-y`/`--yes`, so the surfaces are equivalent.
+  const repo = join(testDir, 'fixtures', 'mcp-command-neutral-flag-equivalence');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const mismatchFindings = report.findings.filter(
+    (finding) => finding.kind === 'mcp_command_mismatch'
+  );
+  assert.deepEqual(mismatchFindings, [], 'expected no mcp_command_mismatch findings');
+  assert.equal(report.surfaceCount, 2);
+});
+
 test('CLI reports Codeium plugin MCP command drift against root MCP config', async () => {
   const repo = join(testDir, 'fixtures', 'codeium-plugin-mcp-config');
 
