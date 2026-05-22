@@ -86,6 +86,17 @@ JSON output:
 node dist/index.js audit --repo test/fixtures/conflicted --format json
 ```
 
+### Auto-fix mode
+
+PolicyMesh ships a narrow `fix` subcommand that aligns enabled/disabled state across MCP surfaces to a canonical source of truth:
+
+```powershell
+node dist/index.js fix --repo . --canonical root_mcp           # dry-run
+node dist/index.js fix --repo . --canonical root_mcp --write   # apply
+```
+
+The `--canonical` flag is required because the engine cannot guess which surface holds the intended policy. v1 only handles `mcp_enabled_mismatch` and only edits JSON MCP surfaces (Codex TOML is out of scope). `--write` rewrites edited JSON files via `JSON.stringify`, which **does not preserve comments or original indentation**; back up files or commit before running with `--write`.
+
 ### Monorepos
 
 Pass `--recursive` (or `-r`) to discover sub-projects with their own agent configs (e.g. `apps/web/.mcp.json`, `apps/api/.codex/config.toml`) and audit each independently:

@@ -4,6 +4,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { copyFile, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -710,6 +712,103 @@ test('CLI without --recursive on a monorepo audits only the root', async () => {
   // No root-level configs in the fixture, so the root audit finds nothing.
   assert.equal(report.findingCount, 0);
   assert.equal(report.surfaceCount, 0);
+});
+
+async function copyFixture(srcDir, destDir) {
+  await mkdir(destDir, { recursive: true });
+  const { readdir, stat: statFn } = await import('node:fs/promises');
+  for (const entry of await readdir(srcDir)) {
+    const src = join(srcDir, entry);
+    const dest = join(destDir, entry);
+    const s = await statFn(src);
+    if (s.isDirectory()) {
+      await copyFixture(src, dest);
+    } else {
+      await copyFile(src, dest);
+    }
+  }
+}
+
+test('CLI fix dry-run lists planned enabled-state edits without modifying files', async () => {
+  const repo = join(testDir, 'fixtures', 'fix-enabled-mismatch');
+  const before = await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'fix', '--repo', repo, '--canonical', 'root_mcp'],
+    { cwd: packageRoot }
+  );
+
+  assert.match(stdout, /Would apply 1 edit/);
+  assert.match(stdout, /Align "github" enabled=true/);
+  assert.match(stdout, /\.cursor[\/\\]mcp\.json/);
+
+  // Source file is untouched.
+  const after = await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8');
+  assert.equal(after, before);
+});
+
+test('CLI fix --write applies the planned edits and aligns enabled state', async () => {
+  const src = join(testDir, 'fixtures', 'fix-enabled-mismatch');
+  const repo = await mkdtemp(join(tmpdir(), 'policymesh-fix-'));
+  try {
+    await copyFixture(src, repo);
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'fix', '--repo', repo, '--canonical', 'root_mcp', '--write'],
+      { cwd: packageRoot }
+    );
+
+    assert.match(stdout, /Applied 1 edit\(s\)/);
+    assert.match(stdout, /--write reformats edited JSON files/);
+
+    const updated = JSON.parse(await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8'));
+    // Cursor's `disabled` was rewritten to false (server is now active to match root).
+    assert.equal(updated.mcpServers.github.disabled, false);
+
+    // Running an audit on the rewritten tree should no longer flag enabled mismatch.
+    const audit = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const report = JSON.parse(audit.stdout);
+    assert.equal(
+      report.findings.some((f) => f.kind === 'policy_mesh.mcp_enabled_mismatch'),
+      false
+    );
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('CLI fix rejects missing or invalid --canonical', async () => {
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'fix', '--repo', join(testDir, 'fixtures', 'fix-enabled-mismatch')],
+      { cwd: packageRoot }
+    ),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.match(error.stderr, /Missing required argument: --canonical/);
+      return true;
+    }
+  );
+
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'fix', '--repo', join(testDir, 'fixtures', 'fix-enabled-mismatch'), '--canonical', 'not-a-surface'],
+      { cwd: packageRoot }
+    ),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.match(error.stderr, /--canonical must be one of/);
+      return true;
+    }
+  );
 });
 
 test('CLI emits Markdown with matrix and union summary', async () => {
