@@ -75,6 +75,11 @@ test('issue templates collect detector and team validation feedback', async () =
   assert.match(falsePositive, /repository-count/);
   assert.match(missingSurface, /Review surface/);
   assert.match(teamValidation, /Approximate repository count/);
+  assert.match(teamValidation, /Active agent surfaces/);
+  assert.match(teamValidation, /Central enforcement need/);
+  assert.match(teamValidation, /Shared baselines or defaults/);
+  assert.match(teamValidation, /Exception workflow need/);
+  assert.match(teamValidation, /Reporting or export need/);
   assert.match(teamValidation, /Team workflow/);
   assert.match(teamValidation, /Paid-layer signal/);
   assert.match(readme, /team-validation\.yml/);

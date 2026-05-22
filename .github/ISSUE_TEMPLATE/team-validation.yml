@@ -24,6 +24,71 @@ body:
       placeholder: "Example: pull request checks for each app repo, security review for shared MCP config, platform team owns defaults."
     validations:
       required: true
+  - type: checkboxes
+    id: active-surfaces
+    attributes:
+      label: Active agent surfaces
+      description: Which AI-agent policy surfaces are active across the repositories where you would try PolicyMesh?
+      options:
+        - label: Claude settings
+        - label: Cursor MCP config
+        - label: Codex config or Codex MCP tables
+        - label: VS Code MCP config
+        - label: Codeium/Windsurf MCP config
+        - label: Root MCP config
+        - label: Other surface not listed
+    validations:
+      required: true
+  - type: dropdown
+    id: central-enforcement
+    attributes:
+      label: Central enforcement need
+      description: Would this need one shared policy posture across repos, or only advisory checks in each repo?
+      options:
+        - Advisory per repo is enough
+        - Shared baseline needed, but enforcement can stay per repo
+        - Central severity policy or enforcement needed
+        - Not sure yet
+    validations:
+      required: true
+  - type: dropdown
+    id: shared-baselines
+    attributes:
+      label: Shared baselines or defaults
+      description: Would a reusable org/team baseline be needed beyond copy-pasting workflow YAML?
+      options:
+        - No shared baseline needed
+        - Shared recommended defaults would help
+        - Required org/team baseline needed
+        - Not sure yet
+    validations:
+      required: true
+  - type: dropdown
+    id: exception-workflow
+    attributes:
+      label: Exception workflow need
+      description: Do policy exceptions need owners, expiry dates, approval, or review history?
+      options:
+        - No exception workflow needed
+        - Lightweight repo comments are enough
+        - Owner and expiry tracking needed
+        - Approval and audit history needed
+        - Not sure yet
+    validations:
+      required: true
+  - type: dropdown
+    id: reporting-export
+    attributes:
+      label: Reporting or export need
+      description: Would the team need cross-repo reports, audit exports, or dashboard-style summaries?
+      options:
+        - No reporting or exports needed
+        - Periodic export is enough
+        - Cross-repo report needed
+        - Dashboard or API needed
+        - Not sure yet
+    validations:
+      required: true
   - type: textarea
     id: paid-layer-signal
     attributes:
