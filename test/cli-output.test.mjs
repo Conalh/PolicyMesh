@@ -111,6 +111,31 @@ test('CLI rejects --repo before another option as a missing value', async () => 
   );
 });
 
+test('CLI consolidates mcp_unpinned across surfaces into one finding with multiple locations', async () => {
+  // Conflicted fixture has the same @latest github server pinned across
+  // cursor / vscode / windsurf. Before consolidation this produced three
+  // separate findings; now it should produce one with three locations,
+  // matching the existing detectMcpCommandMismatch shape.
+  const repo = join(testDir, 'fixtures', 'conflicted');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const unpinned = report.findings.filter(
+    (finding) => finding.kind === 'policy_mesh.mcp_unpinned'
+  );
+  assert.equal(unpinned.length, 1, 'expected exactly one consolidated mcp_unpinned finding');
+  assert.ok(unpinned[0].locations.length >= 2, 'expected multiple locations on the consolidated finding');
+  // Each location keeps its own surface tag so CI annotations still land
+  // on every offending file.
+  const surfaces = new Set(unpinned[0].locations.map((location) => location.surface));
+  assert.ok(surfaces.size >= 2, 'expected locations to span multiple surfaces');
+});
+
 test('CLI conflicted fixture returns high rating with expected kinds', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 

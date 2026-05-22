@@ -288,23 +288,43 @@ function detectMcpHeaderMismatch(policies) {
     return findings;
 }
 function detectMcpUnpinned(policies) {
+    // Group unpinned servers by name so a single `@latest` reference shared
+    // across cursor/vscode/windsurf becomes one finding with three
+    // locations rather than three separate noise entries — same shape as
+    // detectMcpCommandMismatch.
     const findings = [];
+    const unpinnedByName = new Map();
     for (const surface of policies.mcpSurfaces) {
         for (const server of surface.servers) {
             if (!server.unpinned) {
                 continue;
             }
-            findings.push({
-                kind: 'policy_mesh.mcp_unpinned',
-                severity: 'medium',
+            const existing = unpinnedByName.get(server.name) ?? [];
+            existing.push(server);
+            unpinnedByName.set(server.name, existing);
+        }
+    }
+    for (const [name, servers] of unpinnedByName) {
+        const primary = servers[0];
+        const surfaces = uniqueSurfaces(servers.map((server) => server.surfaceId));
+        const message = servers.length === 1
+            ? `MCP server "${name}" uses an unpinned command: ${primary.command}.`
+            : `MCP server "${name}" uses an unpinned command across ${surfaces.length} surfaces: ${primary.command}.`;
+        findings.push({
+            kind: 'policy_mesh.mcp_unpinned',
+            severity: 'medium',
+            file: primary.file,
+            line: primary.line,
+            locations: servers.map((server) => ({
                 file: server.file,
                 line: server.line,
-                subject: server.name,
-                message: `MCP server "${server.name}" uses an unpinned command: ${server.command}.`,
-                recommendation: 'Pin executable packages to an exact version and avoid @latest in shared agent configuration.',
-                surfaces: [server.surfaceId]
-            });
-        }
+                surface: server.surfaceId
+            })),
+            subject: name,
+            message,
+            recommendation: 'Pin executable packages to an exact version and avoid @latest in shared agent configuration.',
+            surfaces
+        });
     }
     return findings;
 }
