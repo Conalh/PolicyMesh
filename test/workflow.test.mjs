@@ -97,6 +97,7 @@ test('issue templates collect detector and team validation feedback', async () =
   const missingSurface = await readFile(join(packageRoot, '.github', 'ISSUE_TEMPLATE', 'missing-surface.yml'), 'utf8');
   const teamValidation = await readFile(join(packageRoot, '.github', 'ISSUE_TEMPLATE', 'team-validation.yml'), 'utf8');
   const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
+  const teamPilot = await readFile(join(packageRoot, 'docs', 'TEAM_PILOT.md'), 'utf8');
 
   assert.match(falsePositive, /repository-count/);
   assert.match(missingSurface, /Review surface/);
@@ -108,6 +109,14 @@ test('issue templates collect detector and team validation feedback', async () =
   assert.match(teamValidation, /Reporting or export need/);
   assert.match(teamValidation, /Team workflow/);
   assert.match(teamValidation, /Paid-layer signal/);
+  assert.match(teamPilot, /Conalh\/PolicyMesh@v0\.1\.18/);
+  assert.match(teamPilot, /Run across at least two repositories/);
+  assert.match(teamPilot, /Finding counts by severity/);
+  assert.match(teamPilot, /shared baselines/);
+  assert.match(teamPilot, /exception ownership/);
+  assert.match(teamPilot, /cross-repo reports/);
+  assert.match(teamPilot, /team-validation\.yml/);
+  assert.match(readme, /TEAM_PILOT\.md/);
   assert.match(readme, /team-validation\.yml/);
   assert.match(readme, /issues\/5/);
 });
