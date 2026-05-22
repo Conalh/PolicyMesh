@@ -506,7 +506,7 @@ function summarizeEnvKeys(servers) {
     return servers
         .map((server) => {
         const keys = uniqueSorted(Object.keys(server.env));
-        return `${server.surfaceId} uses ${keys.length > 0 ? keys.join(', ') : 'no env variables'}`;
+        return `${surfaceLabel(server.surfaceId)} uses ${keys.length > 0 ? keys.join(', ') : 'no env variables'}`;
     })
         .join('; ');
 }
@@ -530,17 +530,28 @@ function summarizeHeaderKeys(servers) {
     return servers
         .map((server) => {
         const keys = uniqueSorted(Object.keys(server.headers));
-        return `${server.surfaceId} uses ${keys.length > 0 ? keys.join(', ') : 'no headers'}`;
+        return `${surfaceLabel(server.surfaceId)} uses ${keys.length > 0 ? keys.join(', ') : 'no headers'}`;
     })
         .join('; ');
 }
 function summarizeEnabledStates(servers) {
     return servers
-        .map((server) => `${server.enabled ? 'enabled' : 'disabled'} in ${server.surfaceId}`)
+        .map((server) => `${server.enabled ? 'enabled' : 'disabled'} in ${surfaceLabel(server.surfaceId)}`)
         .join('; ');
 }
 function formatSurfaceList(surfaces) {
-    return surfaces.join(', ');
+    return surfaces.map(surfaceLabel).join(', ');
+}
+function surfaceLabel(surface) {
+    const labels = {
+        root_mcp: 'Root MCP',
+        cursor_mcp: 'Cursor MCP',
+        vscode_mcp: 'VS Code MCP',
+        windsurf_mcp: 'Codeium/Windsurf MCP',
+        claude: 'Claude',
+        codex: 'Codex'
+    };
+    return labels[surface];
 }
 function listOtherAgentSurfaces(policies) {
     const surfaces = policies.mcpSurfaces
