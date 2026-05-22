@@ -1,6 +1,6 @@
 # PolicyMesh Team Pilot
 
-Use this when a team wants to validate whether the free GitHub Action is enough before any paid team layer or hosted SaaS work is built.
+Use this when a team wants to try PolicyMesh across multiple repositories and report back on whether the Action covers the team's real workflow needs.
 
 ## Pilot Setup
 
@@ -38,18 +38,16 @@ For each repository, record:
 - Whether each warning is actionable, noisy, or missing important context.
 - Whether advisory mode is enough or a stricter `fail-on` threshold would be used after tuning.
 
-## Paid-Layer Signals
+## Team Workflow Gaps Worth Reporting
 
-Do not treat a single warning as paid-layer validation. Paid-layer work needs repeated team needs that the free Action and repo-local workflow config cannot solve.
-
-Useful validation signals include:
+Single warnings rarely tell the whole story. The shape of team feedback most worth surfacing:
 
 - shared baselines or defaults that multiple repositories should inherit;
 - central severity policy that cannot be managed in each repo workflow;
 - exception ownership, expiry, approval, or review history;
-- cross-repo reports, audit exports, or dashboard/API needs;
+- cross-repo reports or audit exports;
 - a blocker that prevents trying PolicyMesh in pull requests even with `fail-on: none`.
 
 ## Report Back
 
-Open a [team validation signal](https://github.com/Conalh/PolicyMesh/issues/new?template=team-validation.yml) with the repository count, active surfaces, finding patterns, and any paid-layer need. The paid-layer tracker remains [issue #5](https://github.com/Conalh/PolicyMesh/issues/5).
+Open a [team feedback form](https://github.com/Conalh/PolicyMesh/issues/new?template=team-validation.yml) with the repository count, active surfaces, finding patterns, and any team-workflow gap.

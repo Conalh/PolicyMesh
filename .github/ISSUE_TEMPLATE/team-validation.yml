@@ -90,10 +90,10 @@ body:
     validations:
       required: true
   - type: textarea
-    id: paid-layer-signal
+    id: team-workflow-gap
     attributes:
-      label: Paid-layer signal
-      description: What would make a paid team layer worth validating before any SaaS is built?
+      label: Team workflow gap
+      description: What team-level capability would help most that the single-repo Action doesn't cover today?
       placeholder: "Example: org-wide baseline files, cross-repo reporting, severity policy, audit exports, team exceptions, Slack summary."
     validations:
       required: true
