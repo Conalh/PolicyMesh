@@ -29,6 +29,10 @@ const diffModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'diff.js')).href
 );
 const { diffReports } = diffModule;
+const contextModule = await import(
+  pathToFileURL(join(testDir, '..', 'dist', 'mesh', 'context.js')).href
+);
+const { makeMeshContext } = contextModule;
 
 function makeReport(findings) {
   return {
@@ -337,6 +341,45 @@ test('diffReports: omits resolvedFindings field when nothing was resolved', () =
 
   const delta = diffReports(base, head);
   assert.equal(delta.resolvedFindings, undefined);
+});
+
+test('makeMeshContext: indexes servers by name across surfaces in a single pass', () => {
+  const policies = {
+    mcpSurfaces: [
+      {
+        surfaceId: 'root_mcp',
+        file: '.mcp.json',
+        servers: [
+          { name: 'github', command: 'npx', enabled: true, env: {}, headers: {}, file: '.mcp.json', surfaceId: 'root_mcp', canonicalIdentity: 'npx', unpinned: false },
+          { name: 'linear', command: 'npx', enabled: true, env: {}, headers: {}, file: '.mcp.json', surfaceId: 'root_mcp', canonicalIdentity: 'npx', unpinned: false }
+        ]
+      },
+      {
+        surfaceId: 'cursor_mcp',
+        file: '.cursor/mcp.json',
+        servers: [
+          { name: 'github', command: 'npx', enabled: false, env: {}, headers: {}, file: '.cursor/mcp.json', surfaceId: 'cursor_mcp', canonicalIdentity: 'npx', unpinned: false }
+        ]
+      }
+    ]
+  };
+
+  const ctx = makeMeshContext(policies);
+  // Same name across surfaces gets one map entry with both servers.
+  assert.equal(ctx.serversByName.get('github').length, 2);
+  // Names unique to one surface still appear.
+  assert.equal(ctx.serversByName.get('linear').length, 1);
+  // mcpSurfaceIds preserves order from the policies.
+  assert.deepEqual(ctx.mcpSurfaceIds, ['root_mcp', 'cursor_mcp']);
+  // allMcpServers is a flat list of every (surface, server) pair.
+  assert.equal(ctx.allMcpServers.length, 3);
+});
+
+test('makeMeshContext: empty policies produces empty indexes', () => {
+  const ctx = makeMeshContext({ mcpSurfaces: [] });
+  assert.equal(ctx.serversByName.size, 0);
+  assert.equal(ctx.allMcpServers.length, 0);
+  assert.deepEqual(ctx.mcpSurfaceIds, []);
 });
 
 test('diffReports: rating reflects only delta findings, not base or head', () => {

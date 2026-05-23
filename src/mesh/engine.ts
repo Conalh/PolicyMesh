@@ -2,23 +2,33 @@ import { isBroadAllow, isSensitiveDeny } from '../parsers/claude.js';
 import { codexSandboxRank } from '../parsers/codex.js';
 import { matchSecret } from './secrets.js';
 import { detectPrivilegedCommands } from './privileged.js';
+import { makeMeshContext } from './context.js';
+import type { MeshContext } from './context.js';
 import type { Finding, MatrixRow, McpServer, RepoPolicies, SurfaceId } from '../types.js';
 
 export function runMeshRules(policies: RepoPolicies): Finding[] {
+  const ctx = makeMeshContext(policies);
+
+  // Compute mcp_command_mismatch once and reuse it inside
+  // detectCodexTrustedWithRiskyMcp. The previous shape ran the full
+  // mismatch detector twice — once for its own emit, once just to
+  // measure .length > 0 inside a downstream rule.
+  const mismatchFindings = detectMcpCommandMismatch(ctx);
+
   const findings: Finding[] = [
-    ...detectMcpCommandMismatch(policies),
-    ...detectMcpServerMissing(policies),
-    ...detectMcpEnabledMismatch(policies),
-    ...detectMcpEnvMismatch(policies),
-    ...detectMcpHeaderMismatch(policies),
-    ...detectMcpUnpinned(policies),
+    ...mismatchFindings,
+    ...detectMcpServerMissing(ctx),
+    ...detectMcpEnabledMismatch(ctx),
+    ...detectMcpEnvMismatch(ctx),
+    ...detectMcpHeaderMismatch(ctx),
+    ...detectMcpUnpinned(ctx),
     ...detectHardcodedSecrets(policies),
     ...detectPrivilegedCommands(policies),
     ...detectClaudeMcpGrantMissingServer(policies),
     ...detectClaudeDenyAllowOverlap(policies),
     ...detectClaudeBroadAllowNoGuard(policies),
     ...detectCodexNetworkWithoutReview(policies),
-    ...detectCodexTrustedWithRiskyMcp(policies),
+    ...detectCodexTrustedWithRiskyMcp(policies, mismatchFindings),
     ...detectCodexClaudePostureGap(policies),
     ...detectAiderDangerousAllowNonGit(policies)
   ];
@@ -134,9 +144,9 @@ function detectClaudeMcpGrantMissingServer(policies: RepoPolicies): Finding[] {
   return findings;
 }
 
-function detectMcpCommandMismatch(policies: RepoPolicies): Finding[] {
+function detectMcpCommandMismatch(ctx: MeshContext): Finding[] {
   const findings: Finding[] = [];
-  const byName = groupMcpServersByName(policies);
+  const byName = ctx.serversByName;
 
   for (const [name, servers] of byName) {
     // Group by canonical identity, not raw command string, so neutral
@@ -179,15 +189,15 @@ function detectMcpCommandMismatch(policies: RepoPolicies): Finding[] {
   return findings;
 }
 
-function detectMcpServerMissing(policies: RepoPolicies): Finding[] {
+function detectMcpServerMissing(ctx: MeshContext): Finding[] {
   const findings: Finding[] = [];
-  if (policies.mcpSurfaces.length < 2) {
+  if (ctx.policies.mcpSurfaces.length < 2) {
     return findings;
   }
 
-  const byName = groupMcpServersByName(policies);
-  const surfaceIds = policies.mcpSurfaces.map((s) => s.surfaceId);
-  const surfaceById = new Map(policies.mcpSurfaces.map((surface) => [surface.surfaceId, surface]));
+  const byName = ctx.serversByName;
+  const surfaceIds = ctx.mcpSurfaceIds;
+  const surfaceById = new Map(ctx.policies.mcpSurfaces.map((surface) => [surface.surfaceId, surface]));
 
   for (const [name, servers] of byName) {
     const present = new Set(servers.map((s) => s.surfaceId));
@@ -223,9 +233,9 @@ function detectMcpServerMissing(policies: RepoPolicies): Finding[] {
   return findings;
 }
 
-function detectMcpEnabledMismatch(policies: RepoPolicies): Finding[] {
+function detectMcpEnabledMismatch(ctx: MeshContext): Finding[] {
   const findings: Finding[] = [];
-  const byName = groupMcpServersByName(policies);
+  const byName = ctx.serversByName;
 
   for (const [name, servers] of byName) {
     if (servers.length < 2) {
@@ -258,9 +268,9 @@ function detectMcpEnabledMismatch(policies: RepoPolicies): Finding[] {
   return findings;
 }
 
-function detectMcpEnvMismatch(policies: RepoPolicies): Finding[] {
+function detectMcpEnvMismatch(ctx: MeshContext): Finding[] {
   const findings: Finding[] = [];
-  const byName = groupMcpServersByName(policies);
+  const byName = ctx.serversByName;
 
   for (const [name, servers] of byName) {
     if (servers.length < 2) {
@@ -298,9 +308,9 @@ function detectMcpEnvMismatch(policies: RepoPolicies): Finding[] {
   return findings;
 }
 
-function detectMcpHeaderMismatch(policies: RepoPolicies): Finding[] {
+function detectMcpHeaderMismatch(ctx: MeshContext): Finding[] {
   const findings: Finding[] = [];
-  const byName = groupMcpServersByName(policies);
+  const byName = ctx.serversByName;
 
   for (const [name, servers] of byName) {
     if (servers.length < 2) {
@@ -338,7 +348,7 @@ function detectMcpHeaderMismatch(policies: RepoPolicies): Finding[] {
   return findings;
 }
 
-function detectMcpUnpinned(policies: RepoPolicies): Finding[] {
+function detectMcpUnpinned(ctx: MeshContext): Finding[] {
   // Group unpinned servers by name so a single `@latest` reference shared
   // across cursor/vscode/windsurf becomes one finding with three
   // locations rather than three separate noise entries — same shape as
@@ -346,15 +356,13 @@ function detectMcpUnpinned(policies: RepoPolicies): Finding[] {
   const findings: Finding[] = [];
   const unpinnedByName = new Map<string, McpServer[]>();
 
-  for (const surface of policies.mcpSurfaces) {
-    for (const server of surface.servers) {
-      if (!server.unpinned) {
-        continue;
-      }
-      const existing = unpinnedByName.get(server.name) ?? [];
-      existing.push(server);
-      unpinnedByName.set(server.name, existing);
+  for (const server of ctx.allMcpServers) {
+    if (!server.unpinned) {
+      continue;
     }
+    const existing = unpinnedByName.get(server.name) ?? [];
+    existing.push(server);
+    unpinnedByName.set(server.name, existing);
   }
 
   for (const [name, servers] of unpinnedByName) {
@@ -470,7 +478,7 @@ function detectCodexNetworkWithoutReview(policies: RepoPolicies): Finding[] {
   }];
 }
 
-function detectCodexTrustedWithRiskyMcp(policies: RepoPolicies): Finding[] {
+function detectCodexTrustedWithRiskyMcp(policies: RepoPolicies, mismatchFindings: Finding[]): Finding[] {
   const codex = policies.codex;
   if (!codex?.trusted) {
     return findingsEmpty();
@@ -478,7 +486,7 @@ function detectCodexTrustedWithRiskyMcp(policies: RepoPolicies): Finding[] {
 
   const findings: Finding[] = [];
   const unpinned = policies.mcpSurfaces.flatMap((s) => s.servers).filter((s) => s.unpinned);
-  const hasMismatch = detectMcpCommandMismatch(policies).length > 0;
+  const hasMismatch = mismatchFindings.length > 0;
 
   if (unpinned.length > 0 || hasMismatch) {
     const risky = unpinned[0];
@@ -601,8 +609,9 @@ export function buildEffectiveUnion(policies: RepoPolicies): string[] {
 }
 
 export function buildSurfaceMatrix(policies: RepoPolicies): MatrixRow[] {
+  const ctx = makeMeshContext(policies);
   const rows: MatrixRow[] = [];
-  const byName = groupMcpServersByName(policies);
+  const byName = ctx.serversByName;
 
   for (const [name, servers] of byName) {
     const values: Partial<Record<SurfaceId, string>> = {};
@@ -682,18 +691,6 @@ export function buildSurfaceMatrix(policies: RepoPolicies): MatrixRow[] {
   }
 
   return rows;
-}
-
-function groupMcpServersByName(policies: RepoPolicies): Map<string, McpServer[]> {
-  const byName = new Map<string, McpServer[]>();
-  for (const surface of policies.mcpSurfaces) {
-    for (const server of surface.servers) {
-      const existing = byName.get(server.name) ?? [];
-      existing.push(server);
-      byName.set(server.name, existing);
-    }
-  }
-  return byName;
 }
 
 function uniqueSurfaces(surfaces: SurfaceId[]): SurfaceId[] {
