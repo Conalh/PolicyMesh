@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { auditRepo } from './audit.js';
 import { auditRecursive } from './recursive.js';
 import { renderReport } from './report.js';
-import { applyEnabledStateFixes, formatFixPlan, planEnabledStateFixes } from './fix.js';
+import { applyEnabledStateFixes, applyPinFixes, formatFixPlan, formatPinPlan, planEnabledStateFixes, planPinFixes } from './fix.js';
 export { auditRepo } from './audit.js';
 export async function main(argv = process.argv.slice(2)) {
     if (argv.length === 0 || argv.includes('--help') || argv.includes('-h')) {
@@ -127,6 +127,11 @@ function parseFixArgs(argv) {
     return { ok: true, repo, canonical, write };
 }
 async function runFix(argv) {
+    // `policymesh fix pin ...` routes to the pin-alignment branch.
+    // `policymesh fix ...` keeps the v0.3.0 enabled-state behavior.
+    if (argv[0] === 'pin') {
+        return runFixPin(argv.slice(1));
+    }
     const parsed = parseFixArgs(argv);
     if (!parsed.ok) {
         process.stderr.write(`${parsed.error}\n${fixUsage()}\n`);
@@ -152,6 +157,36 @@ async function runFix(argv) {
         process.stderr.write(`${error.message}\n`);
         return 2;
     }
+}
+async function runFixPin(argv) {
+    const parsed = parseFixArgs(argv);
+    if (!parsed.ok) {
+        process.stderr.write(`${parsed.error}\n${fixPinUsage()}\n`);
+        return 2;
+    }
+    const repoError = await validateRepoPath(parsed.repo);
+    if (repoError) {
+        process.stderr.write(`${repoError}\n`);
+        return 2;
+    }
+    try {
+        const plan = await planPinFixes(parsed.repo, parsed.canonical);
+        if (parsed.write) {
+            const applied = await applyPinFixes(plan, parsed.repo, true);
+            process.stdout.write(formatPinPlan(plan, applied));
+        }
+        else {
+            process.stdout.write(formatPinPlan(plan));
+        }
+        return 0;
+    }
+    catch (error) {
+        process.stderr.write(`${error.message}\n`);
+        return 2;
+    }
+}
+function fixPinUsage() {
+    return 'policymesh fix pin --repo <path> --canonical <surface> [--write]';
 }
 function githubAnnotationPathPrefix(repo) {
     const prefix = relative(process.cwd(), resolve(repo));
@@ -180,6 +215,7 @@ function usage() {
     return [
         'Usage: policymesh audit --repo <path> [--format text|markdown|json|github|sarif] [--recursive]',
         `       ${fixUsage()}`,
+        `       ${fixPinUsage()}`,
         `       ${renderUsage()}`,
         `       ${diffUsage()}`
     ].join('\n');

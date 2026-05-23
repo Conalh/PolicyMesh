@@ -110,6 +110,17 @@ node dist/index.js fix --repo . --canonical root_mcp --write   # apply
 
 The `--canonical` flag is required because the engine cannot guess which surface holds the intended policy. v1 only handles `mcp_enabled_mismatch` and only edits JSON MCP surfaces (Codex TOML is out of scope). `--write` performs line-targeted in-place edits that preserve comments, trailing commas, and original indentation — only the boolean token on the existing `enabled`/`disabled` line changes.
 
+#### `fix pin`
+
+For command/args drift across MCP surfaces:
+
+```powershell
+node dist/index.js fix pin --repo . --canonical root_mcp           # dry-run
+node dist/index.js fix pin --repo . --canonical root_mcp --write   # apply
+```
+
+`fix pin` rewrites the `command` and `args` fields of MCP server entries on non-canonical surfaces to match the canonical surface — the same line-targeted JSONC editor preserves comments and indentation around the rewritten value. This is more aggressive than enabled-state alignment because it touches the actual exec invocation; the dry-run output starts with an explicit warning, and v1 deliberately skips multi-line `args` arrays and insertion paths so the only thing that ever changes is a value already present on a single line.
+
 ### Monorepos
 
 Pass `--recursive` (or `-r`) to discover sub-projects with their own agent configs (e.g. `apps/web/.mcp.json`, `apps/api/.codex/config.toml`) and audit each independently:

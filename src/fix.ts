@@ -40,6 +40,20 @@ export interface PlannedFix {
   description: string;
 }
 
+export interface PlannedPinFix {
+  file: string;
+  surface: SurfaceId;
+  server: string;
+  canonicalCommand?: string;
+  canonicalArgs?: string[];
+  description: string;
+}
+
+export interface PinFixPlan {
+  canonical: SurfaceId;
+  fixes: PlannedPinFix[];
+}
+
 export interface FixPlan {
   canonical: SurfaceId;
   fixes: PlannedFix[];
@@ -114,6 +128,111 @@ export interface SkippedApply {
   reason: string;
 }
 
+export interface ApplyPinResult {
+  applied: PlannedPinFix[];
+  skipped: { fix: PlannedPinFix; reason: string }[];
+}
+
+export async function planPinFixes(root: string, canonical: SurfaceId): Promise<PinFixPlan> {
+  if (!JSON_MCP_SURFACES.includes(canonical)) {
+    throw new Error(`--canonical must be a JSON MCP surface in v1 (one of ${JSON_MCP_SURFACES.join(', ')}); got "${canonical}".`);
+  }
+
+  const policies = await parseRepoPolicies(root);
+  const canonicalServers = serversBySurface(policies, canonical);
+  const fixes: PlannedPinFix[] = [];
+
+  for (const surface of policies.mcpSurfaces) {
+    if (surface.surfaceId === canonical || !JSON_MCP_SURFACES.includes(surface.surfaceId)) {
+      continue;
+    }
+    for (const server of surface.servers) {
+      const canonicalServer = canonicalServers.get(server.name);
+      if (!canonicalServer) {
+        continue;
+      }
+      // Only plan a fix when the canonical-identity normalisation
+      // already says these diverge — neutral differences (-y flag,
+      // .cmd suffix, flag reorder) are not worth rewriting.
+      if (server.canonicalIdentity === canonicalServer.canonicalIdentity) {
+        continue;
+      }
+      fixes.push({
+        file: server.file,
+        surface: server.surfaceId,
+        server: server.name,
+        canonicalCommand: canonicalServer.command.split(' ')[0],
+        canonicalArgs: canonicalServer.args,
+        description: `Align "${server.name}" command/args to ${canonical} in ${server.file}`
+      });
+    }
+  }
+
+  return { canonical, fixes };
+}
+
+export async function applyPinFixes(plan: PinFixPlan, root: string, write: boolean): Promise<ApplyPinResult> {
+  const applied: PlannedPinFix[] = [];
+  const skipped: { fix: PlannedPinFix; reason: string }[] = [];
+
+  const byFile = new Map<string, PlannedPinFix[]>();
+  for (const fix of plan.fixes) {
+    const existing = byFile.get(fix.file) ?? [];
+    existing.push(fix);
+    byFile.set(fix.file, existing);
+  }
+
+  for (const [file, fileFixes] of byFile) {
+    const fullPath = configPath(root, file);
+    const originalText = await readFile(fullPath, 'utf8');
+    const editor = new JsonLineEditor(originalText);
+
+    for (const fix of fileFixes) {
+      const result = editor.alignCommandAndArgs(fix.server, fix.canonicalCommand, fix.canonicalArgs);
+      if (result.ok) {
+        applied.push(fix);
+      } else {
+        skipped.push({ fix, reason: result.reason });
+      }
+    }
+
+    if (editor.mutated() && write) {
+      await writeFile(fullPath, editor.text(), 'utf8');
+    }
+  }
+
+  return { applied, skipped };
+}
+
+export function formatPinPlan(plan: PinFixPlan, applied?: ApplyPinResult): string {
+  const lines: string[] = [];
+  lines.push(`PolicyMesh pin plan against canonical surface: ${plan.canonical}`);
+  lines.push('Note: fix pin rewrites the command and args of MCP server entries — the very content PolicyMesh audits.');
+  lines.push('Review every edit carefully; back up or commit before running with --write.');
+  lines.push('');
+
+  if (plan.fixes.length === 0) {
+    lines.push('No command/args drift to align.');
+    return `${lines.join('\n')}\n`;
+  }
+
+  if (applied) {
+    lines.push(`Applied ${applied.applied.length} edit(s), skipped ${applied.skipped.length}.`);
+  } else {
+    lines.push(`Would apply ${plan.fixes.length} edit(s). Re-run with --write to persist.`);
+  }
+  for (const fix of plan.fixes) {
+    lines.push(`- ${fix.description}`);
+  }
+  if (applied && applied.skipped.length > 0) {
+    lines.push('Skipped:');
+    for (const skip of applied.skipped) {
+      lines.push(`- ${skip.fix.description} (${skip.reason})`);
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 export async function applyEnabledStateFixes(plan: FixPlan, root: string, write: boolean): Promise<ApplyFixResult> {
   const applied: PlannedFix[] = [];
   const skipped: SkippedApply[] = [];
@@ -174,6 +293,84 @@ class JsonLineEditor {
 
   text(): string {
     return this.lines.join('\n');
+  }
+
+  alignCommandAndArgs(
+    serverName: string,
+    canonicalCommand: string | undefined,
+    canonicalArgs: string[] | undefined
+  ): { ok: true } | { ok: false; reason: string } {
+    if (!canonicalCommand && !canonicalArgs) {
+      return { ok: false, reason: 'canonical surface has neither command nor args to copy' };
+    }
+
+    const original = this.text();
+    const stripped = stripJsonComments(original);
+    const serverKeyLine = lineOfJsonKey(stripped, serverName);
+    if (!serverKeyLine) {
+      return { ok: false, reason: 'server entry not found in file' };
+    }
+    const block = findServerBlock(stripped, serverKeyLine);
+    if (!block) {
+      return { ok: false, reason: 'could not locate server block braces' };
+    }
+
+    const lines = stripped.split(/\r?\n/);
+    let commandLine: number | undefined;
+    let argsLine: number | undefined;
+    let argsClosingLine: number | undefined;
+
+    let depth = 0;
+    for (let i = block.openLine; i <= block.closeLine; i += 1) {
+      const line = lines[i];
+      const isDirectChildLine = depth === 1 && i > block.openLine;
+      if (isDirectChildLine) {
+        if (/"command"\s*:\s*"/.test(line)) {
+          commandLine = i;
+        }
+        const argsMatch = /^(\s*)"args"\s*:\s*\[/.exec(line);
+        if (argsMatch) {
+          argsLine = i;
+          // Single-line array: close bracket on same line.
+          if (/\]/.test(line.slice(argsMatch[0].length))) {
+            argsClosingLine = i;
+          }
+        }
+      }
+      for (const ch of line) {
+        if (ch === '{') depth += 1;
+        else if (ch === '}') depth -= 1;
+      }
+    }
+
+    if (canonicalCommand !== undefined) {
+      if (commandLine === undefined) {
+        return { ok: false, reason: 'target server has no "command" field; insertion not supported in v1' };
+      }
+      const commandRegex = /("command"\s*:\s*)"[^"]*"/;
+      if (!commandRegex.test(this.lines[commandLine])) {
+        return { ok: false, reason: 'could not locate command value token on its line' };
+      }
+      this.lines[commandLine] = this.lines[commandLine].replace(commandRegex, `$1"${escapeJsonString(canonicalCommand)}"`);
+    }
+
+    if (canonicalArgs !== undefined) {
+      if (argsLine === undefined) {
+        return { ok: false, reason: 'target server has no "args" field; insertion not supported in v1' };
+      }
+      if (argsClosingLine !== argsLine) {
+        return { ok: false, reason: 'multi-line "args" array; not supported in v1' };
+      }
+      const argsRegex = /("args"\s*:\s*)\[[^\]]*\]/;
+      if (!argsRegex.test(this.lines[argsLine])) {
+        return { ok: false, reason: 'could not locate args array token on its line' };
+      }
+      const renderedArgs = canonicalArgs.map((arg) => `"${escapeJsonString(arg)}"`).join(', ');
+      this.lines[argsLine] = this.lines[argsLine].replace(argsRegex, `$1[${renderedArgs}]`);
+    }
+
+    this.mutatedFlag = true;
+    return { ok: true };
   }
 
   alignEnabledState(serverName: string, enabled: boolean, surface: SurfaceId): { ok: true } | { ok: false; reason: string } {
@@ -385,6 +582,15 @@ function insertEnabledLine(
   const newLine = `${childIndent}"${key}": ${value}`;
   lines.splice(block.closeLine, 0, newLine);
   return { ok: true };
+}
+
+function escapeJsonString(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
 }
 
 export function formatFixPlan(plan: FixPlan, applied?: ApplyFixResult): string {

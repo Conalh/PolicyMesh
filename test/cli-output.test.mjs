@@ -1132,6 +1132,58 @@ test('CLI render rejects missing input file with a clear error', async () => {
   );
 });
 
+test('CLI fix pin --write aligns mismatched command args to canonical surface', async () => {
+  const src = join(testDir, 'fixtures', 'fix-pin-command');
+  const repo = await mkdtemp(join(tmpdir(), 'policymesh-fix-pin-'));
+  try {
+    await copyFixture(src, repo);
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'fix', 'pin', '--repo', repo, '--canonical', 'root_mcp', '--write'],
+      { cwd: packageRoot }
+    );
+
+    // The warning preamble is explicit about what's being rewritten.
+    assert.match(stdout, /rewrites the command and args of MCP server entries/);
+    assert.match(stdout, /Applied 1 edit/);
+
+    const updated = JSON.parse(await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8'));
+    // Cursor's args now match root's pinned version.
+    assert.deepEqual(updated.mcpServers.github.args, ['-y', '@modelcontextprotocol/server-github@1.2.3']);
+
+    // Re-audit: no command mismatch remains.
+    const { stdout: auditOut } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const report = JSON.parse(auditOut);
+    assert.equal(
+      report.findings.some((f) => f.kind === 'policy_mesh.mcp_command_mismatch'),
+      false
+    );
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('CLI fix pin dry-run does not modify files', async () => {
+  const repo = join(testDir, 'fixtures', 'fix-pin-command');
+  const before = await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'fix', 'pin', '--repo', repo, '--canonical', 'root_mcp'],
+    { cwd: packageRoot }
+  );
+
+  assert.match(stdout, /Would apply 1 edit/);
+  assert.match(stdout, /Re-run with --write to persist/);
+  const after = await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8');
+  assert.equal(after, before);
+});
+
 test('CLI fix dry-run lists planned enabled-state edits without modifying files', async () => {
   const repo = join(testDir, 'fixtures', 'fix-enabled-mismatch');
   const before = await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8');
