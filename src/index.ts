@@ -107,7 +107,8 @@ const SURFACE_IDS: SurfaceId[] = [
   'windsurf_mcp',
   'claude',
   'codex',
-  'aider'
+  'aider',
+  'instructions'
 ];
 
 function isSurfaceId(value: string | undefined): value is SurfaceId {

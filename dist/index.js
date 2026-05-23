@@ -87,7 +87,8 @@ const SURFACE_IDS = [
     'windsurf_mcp',
     'claude',
     'codex',
-    'aider'
+    'aider',
+    'instructions'
 ];
 function isSurfaceId(value) {
     return SURFACE_IDS.includes(value);

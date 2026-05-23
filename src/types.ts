@@ -8,7 +8,8 @@ export type SurfaceId =
   | 'windsurf_mcp'
   | 'claude'
   | 'codex'
-  | 'aider';
+  | 'aider'
+  | 'instructions';
 
 export interface Finding {
   kind: string;
@@ -102,11 +103,31 @@ export interface AiderPolicy {
   autoAcceptArchitect?: boolean;
 }
 
+export type InstructionRiskCategory =
+  | 'skip_confirmation'
+  | 'override_safety'
+  | 'broad_write'
+  | 'auto_version_control';
+
+export interface InstructionMatch {
+  file: string;
+  line: number;
+  category: InstructionRiskCategory;
+  excerpt: string;
+}
+
+export interface InstructionsPolicy {
+  surfaceId: 'instructions';
+  files: string[];
+  matches: InstructionMatch[];
+}
+
 export interface RepoPolicies {
   mcpSurfaces: McpSurface[];
   claude?: ClaudePolicy;
   codex?: CodexPolicy;
   aider?: AiderPolicy;
+  instructions?: InstructionsPolicy;
   parseFindings?: Finding[];
 }
 

@@ -25,9 +25,65 @@ export function runMeshRules(policies) {
         ...detectCodexNetworkWithoutReview(policies),
         ...detectCodexTrustedWithRiskyMcp(policies, mismatchFindings),
         ...detectCodexClaudePostureGap(policies),
-        ...detectAiderDangerousAllowNonGit(policies)
+        ...detectAiderDangerousAllowNonGit(policies),
+        ...detectRiskyInstructions(policies)
     ];
     return findings;
+}
+function detectRiskyInstructions(policies) {
+    const instructions = policies.instructions;
+    if (!instructions || instructions.matches.length === 0) {
+        return [];
+    }
+    return instructions.matches.map((match) => ({
+        kind: `policy_mesh.instructions_${match.category}`,
+        severity: severityFor(match.category),
+        file: match.file,
+        line: match.line,
+        subject: `${match.file}:${match.line}`,
+        message: `Instruction file ${match.file}:${match.line} contains a ${humanLabel(match.category)} directive: "${match.excerpt}".`,
+        recommendation: recommendationFor(match.category),
+        surfaces: ['instructions']
+    }));
+}
+function severityFor(category) {
+    switch (category) {
+        case 'override_safety':
+            return 'high';
+        case 'skip_confirmation':
+        case 'broad_write':
+            return 'medium';
+        default:
+            return 'low';
+    }
+}
+function humanLabel(category) {
+    switch (category) {
+        case 'skip_confirmation':
+            return 'skip-confirmation';
+        case 'override_safety':
+            return 'safety-override';
+        case 'broad_write':
+            return 'broad-write-access';
+        case 'auto_version_control':
+            return 'automatic-version-control';
+        default:
+            return category;
+    }
+}
+function recommendationFor(category) {
+    switch (category) {
+        case 'skip_confirmation':
+            return 'Remove or scope the directive so the agent still confirms destructive actions. Broad "without asking" wording undermines the Claude PreToolUse and Codex approval prompts that hold the policy line.';
+        case 'override_safety':
+            return 'Delete the override. Instructions that tell the agent to ignore deny rules or guards directly contradict the deny/sandbox configuration in this repository.';
+        case 'broad_write':
+            return 'Constrain the directive to specific paths or use cases. Broad write licence in prose lets an agent justify edits the deny rules would otherwise block.';
+        case 'auto_version_control':
+            return 'Move version-control automation behind explicit user approval or a PreToolUse hook. Auto-commit / auto-push in prose bypasses the review path that PolicyMesh and ScopeTrail rely on.';
+        default:
+            return 'Review this directive in light of the deny rules and sandbox posture configured for the repository.';
+    }
 }
 function detectAiderDangerousAllowNonGit(policies) {
     const aider = policies.aider;
@@ -665,7 +721,8 @@ function surfaceLabel(surface) {
         windsurf_mcp: 'Windsurf MCP',
         claude: 'Claude',
         codex: 'Codex',
-        aider: 'Aider'
+        aider: 'Aider',
+        instructions: 'Instructions'
     };
     return labels[surface];
 }

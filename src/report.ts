@@ -333,7 +333,8 @@ const SURFACE_COLUMNS: SurfaceId[] = [
   'windsurf_mcp',
   'claude',
   'codex',
-  'aider'
+  'aider',
+  'instructions'
 ];
 
 const SURFACE_LABELS: Record<SurfaceId, string> = {
@@ -344,7 +345,8 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
   windsurf_mcp: 'Windsurf MCP',
   claude: 'Claude',
   codex: 'Codex',
-  aider: 'Aider'
+  aider: 'Aider',
+  instructions: 'Instructions'
 };
 
 function formatSurface(surface: SurfaceId): string {

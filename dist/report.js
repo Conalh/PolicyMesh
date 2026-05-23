@@ -292,7 +292,8 @@ const SURFACE_COLUMNS = [
     'windsurf_mcp',
     'claude',
     'codex',
-    'aider'
+    'aider',
+    'instructions'
 ];
 const SURFACE_LABELS = {
     root_mcp: 'Root MCP',
@@ -302,7 +303,8 @@ const SURFACE_LABELS = {
     windsurf_mcp: 'Windsurf MCP',
     claude: 'Claude',
     codex: 'Codex',
-    aider: 'Aider'
+    aider: 'Aider',
+    instructions: 'Instructions'
 };
 function formatSurface(surface) {
     return SURFACE_LABELS[surface];

@@ -24,7 +24,8 @@ const PREFERRED_KEY = {
     windsurf_mcp: 'enabled',
     claude: 'enabled',
     codex: 'enabled',
-    aider: 'enabled'
+    aider: 'enabled',
+    instructions: 'enabled'
 };
 export async function planEnabledStateFixes(root, canonical) {
     if (!JSON_MCP_SURFACES.includes(canonical)) {

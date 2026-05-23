@@ -27,7 +27,8 @@ const PREFERRED_KEY: Record<SurfaceId, 'enabled' | 'disabled'> = {
   windsurf_mcp: 'enabled',
   claude: 'enabled',
   codex: 'enabled',
-  aider: 'enabled'
+  aider: 'enabled',
+  instructions: 'enabled'
 };
 
 export interface PlannedFix {

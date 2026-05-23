@@ -18,6 +18,7 @@ PolicyMesh is a free OSS CLI and GitHub Action that audits a repository for cont
 - `.claude/settings.json`
 - `.codex/config.toml`
 - `.aider.conf.yml`
+- Instruction surfaces: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*.md`, `.github/copilot-instructions.md`
 - Surface matrix, effective capability union, and conflict findings
 - Terminal, Markdown, JSON, and line-level GitHub annotation output
 - GitHub Action step summaries and PR-visible warnings
@@ -243,6 +244,7 @@ PolicyMesh v0 detects:
 - MCP servers referencing local scripts (relative paths ending in `.js`, `.py`, `.sh`, etc.) that do not exist in the checked-out repository.
 - MCP servers launching via elevation utilities (`sudo`, `doas`, `pkexec`, `runas`, `gsudo`, etc.). Agents should run in user space, not as root.
 - Aider configured with `dangerously-allow-non-git: true`, bypassing the git-tracked audit trail that makes edits reviewable.
+- Risky imperatives in instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*.md`, `.github/copilot-instructions.md`): "ignore deny rules" (HIGH), "without asking" (MEDIUM), "edit any file" (MEDIUM), "auto-commit / push automatically" (LOW). Detection is narrow regex over imperative + risky-scope phrasing — phrases like "Always use TypeScript" and "Never use var" do not trip.
 - Malformed JSON and Codex TOML agent config files that would otherwise hide a policy surface.
 
 PolicyMesh parses VS Code and Cursor configs as JSONC — `//` line comments, `/* */` block comments, and trailing commas are all accepted, so the audit doesn't false-fail on real-world editor output. `isBroadAllow` distinguishes scoped grants like `WebFetch(domain:example.com)` and `mcp__github__get_issue` from bare or wildcarded grants; narrow grants are not flagged.

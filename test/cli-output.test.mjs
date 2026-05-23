@@ -1236,6 +1236,46 @@ test('CLI effective union includes a one-line posture summary on conflicted fixt
   assert.match(posture, /Loosest: Codex/);
 });
 
+test('CLI flags risky instructions in AGENTS.md across categories', async () => {
+  const repo = join(testDir, 'fixtures', 'instructions-risky');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const kinds = new Set(report.findings.map((finding) => finding.kind));
+  // Each risky line should produce a finding under its own kind.
+  assert.ok(kinds.has('policy_mesh.instructions_auto_version_control'), 'expected auto-version-control finding for "commits automatically without asking"');
+  assert.ok(kinds.has('policy_mesh.instructions_skip_confirmation'), 'expected skip-confirmation finding for "without asking"');
+  assert.ok(kinds.has('policy_mesh.instructions_broad_write'), 'expected broad-write finding for "edit any file"');
+  assert.ok(kinds.has('policy_mesh.instructions_override_safety'), 'expected override-safety finding for "ignore the deny"');
+
+  // Override-safety is high; broad-write and skip-confirmation are medium.
+  const overrideSafety = report.findings.find((finding) => finding.kind === 'policy_mesh.instructions_override_safety');
+  assert.equal(overrideSafety.severity, 'high');
+  assert.equal(overrideSafety.file, 'AGENTS.md');
+  assert.deepEqual(overrideSafety.surfaces, ['instructions']);
+});
+
+test('CLI does not flag clean documentation that uses "Always" / "Never" benignly', async () => {
+  const repo = join(testDir, 'fixtures', 'instructions-clean');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const instructionFindings = report.findings.filter((finding) => finding.kind.startsWith('policy_mesh.instructions_'));
+  assert.deepEqual(instructionFindings, [], 'expected no instruction findings on clean AGENTS.md');
+  // The surface itself is still counted as configured because the file exists.
+  assert.equal(report.surfaceCount, 1);
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
