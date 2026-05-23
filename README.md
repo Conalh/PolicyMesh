@@ -88,7 +88,7 @@ Supported formats: `text` (default, ANSI-coloured in a TTY), `markdown`, `json`,
 To emit SARIF for the GitHub Security tab, point the bundled CLI at the audit and upload the result via `github/codeql-action/upload-sarif`:
 
 ```yaml
-- uses: Conalh/PolicyMesh@v0.4.0
+- uses: Conalh/PolicyMesh@v0.5.0
   with:
     fail-on: none
 - run: node "$GITHUB_ACTION_PATH/dist/index.js" audit --repo . --format sarif > policymesh.sarif
@@ -152,7 +152,7 @@ jobs:
         with:
           fetch-depth: 0   # required for diff mode to see the PR base ref
 
-      - uses: Conalh/PolicyMesh@v0.4.0
+      - uses: Conalh/PolicyMesh@v0.5.0
         with:
           fail-on: high
           diff: true
@@ -164,7 +164,7 @@ For the simpler full-snapshot mode (audits every finding on every PR, no `fetch-
 
 ```yaml
       - uses: actions/checkout@v6
-      - uses: Conalh/PolicyMesh@v0.4.0
+      - uses: Conalh/PolicyMesh@v0.5.0
         with:
           fail-on: none
 ```
@@ -185,7 +185,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: Conalh/PolicyMesh@v0.4.0
+      - uses: Conalh/PolicyMesh@v0.5.0
         with:
           fail-on: none
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -198,7 +198,7 @@ Without `github-token`, the action runs with the minimal `contents: read` permis
 Set `recursive: true` to audit every sub-project with its own agent config independently. Findings keep their relative file paths so PR annotations land on the right line:
 
 ```yaml
-      - uses: Conalh/PolicyMesh@v0.4.0
+      - uses: Conalh/PolicyMesh@v0.5.0
         with:
           fail-on: none
           recursive: true
