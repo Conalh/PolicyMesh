@@ -127,15 +127,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0   # required for diff mode to see the PR base ref
 
+      - uses: Conalh/PolicyMesh@v0.2.0
+        with:
+          fail-on: high
+          diff: true
+```
+
+**PR delta mode (`diff: true`) is the recommended default**: PolicyMesh audits the PR base ref in a temporary worktree, audits HEAD, and emits PR annotations only for findings that this PR **introduces or worsens**. The `rating` / `finding-count` outputs and `fail-on` threshold gate on the delta, so a PR that doesn't introduce new conflicts passes even when the repo has pre-existing findings. The step summary still shows the full head report for context. Findings whose severity rose in head are marked `[WORSENED from <severity>]` in the message; findings present in base but absent in head are surfaced as a `Resolved by this PR` section — green-check signal alongside the warnings.
+
+For the simpler full-snapshot mode (audits every finding on every PR, no `fetch-depth: 0` required):
+
+```yaml
+      - uses: actions/checkout@v6
       - uses: Conalh/PolicyMesh@v0.2.0
         with:
           fail-on: none
 ```
 
-Unlike drift scanners, PolicyMesh audits the checked-out snapshot only. **No `fetch-depth: 0` is required.**
-
-The action runs the bundled CLI from the published tag and uploads nothing by default. It writes a Markdown report to the GitHub Actions step summary and emits PR-visible warning annotations for each finding.
+The action runs the bundled CLI from the published tag and uploads nothing by default. It writes a Markdown report to the GitHub Actions step summary and emits PR-visible warning annotations.
 
 ### Optional: sticky PR comment
 
@@ -170,23 +182,15 @@ Set `recursive: true` to audit every sub-project with its own agent config indep
           recursive: true
 ```
 
-### Optional: PR delta mode
+### Local diff: working tree vs a git ref
 
-For repos that already have pre-existing findings, the default audit fires on every PR with the same noise. Set `diff: true` to gate annotations and `fail-on` on only the findings that this PR **introduces or worsens**:
-
-```yaml
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0     # required so the PR base ref is available
-      - uses: Conalh/PolicyMesh@v0.2.0
-        with:
-          fail-on: high
-          diff: true
+```powershell
+node dist/index.js diff --base-ref main --repo .
 ```
 
-The Action audits the PR base ref in a temporary worktree, audits HEAD, and runs `policymesh diff` to compute the delta. Annotations and the `rating`/`finding-count` outputs reflect the delta only; the step summary and sticky PR comment still show the full head report for context. Findings that were already present in the base ref are unchanged in the delta; findings whose severity has increased are marked `[WORSENED from <severity>]` in the message.
+`policymesh diff --base-ref <ref>` checks out the named ref into a temporary git worktree, audits it, audits the current working tree, and prints the delta — same engine the Action uses. Use this to see what your in-progress changes would surface on a PR before you push.
 
-If you need to compose this yourself, the CLI exposes the primitives:
+If you'd rather compose the primitives yourself:
 
 ```powershell
 node dist/index.js audit --repo /path/to/base --format json > base.json

@@ -754,6 +754,76 @@ async function copyFixture(srcDir, destDir) {
   }
 }
 
+test('CLI diff --base-ref audits the named ref via git worktree and diffs against working tree', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'policymesh-diff-ref-'));
+  try {
+    const git = (...args) =>
+      execFileAsync('git', ['-C', repo, ...args]);
+    await git('init', '-b', 'main');
+    await git('config', 'user.email', 'test@example.com');
+    await git('config', 'user.name', 'Test');
+    await git('config', 'commit.gpgsign', 'false');
+
+    const aligned = `{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@1.2.3"]
+    }
+  }
+}
+`;
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    await writeFile(join(repo, '.mcp.json'), aligned);
+    await mkdir(join(repo, '.cursor'), { recursive: true });
+    await writeFile(join(repo, '.cursor', 'mcp.json'), aligned);
+    await git('add', '.');
+    await git('commit', '-m', 'aligned baseline');
+
+    // Working-tree edit introduces a command mismatch versus the committed HEAD.
+    const mismatched = `{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@2.0.0"]
+    }
+  }
+}
+`;
+    await writeFile(join(repo, '.cursor', 'mcp.json'), mismatched);
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'diff', '--base-ref', 'HEAD', '--repo', repo, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const delta = JSON.parse(stdout);
+
+    assert.ok(delta.findingCount >= 1, 'expected at least one new finding from the working-tree mismatch');
+    assert.ok(
+      delta.findings.some((finding) => finding.kind === 'policy_mesh.mcp_command_mismatch'),
+      'expected an mcp_command_mismatch finding in the delta'
+    );
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('CLI diff --base-ref rejects --head-ref other than HEAD in v1', async () => {
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'diff', '--base-ref', 'main', '--head-ref', 'feature/x', '--repo', packageRoot],
+      { cwd: packageRoot }
+    ),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.match(error.stderr, /--head-ref currently supports "HEAD" only/);
+      return true;
+    }
+  );
+});
+
 test('CLI render reproduces audit output from saved JSON without re-running detectors', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
   const jsonPath = join(await mkdtemp(join(tmpdir(), 'policymesh-render-')), 'report.json');
@@ -850,6 +920,48 @@ test('CLI diff returns only findings introduced or worsened in head', async () =
     assert.equal(delta.rating, 'high');
     // Effective union and matrix still reflect head's full state for context.
     assert.ok(delta.matrix.length > 0);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test('CLI diff renders Resolved by this PR section when base findings disappear in head', async () => {
+  const tmp = await mkdtemp(join(tmpdir(), 'policymesh-diff-resolved-'));
+  try {
+    // base has conflicted findings; head is aligned (clean). Every base finding is resolved.
+    const baseAudit = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', join(testDir, 'fixtures', 'conflicted'), '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const headAudit = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', join(testDir, 'fixtures', 'aligned'), '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const { writeFile } = await import('node:fs/promises');
+    const basePath = join(tmp, 'base.json');
+    const headPath = join(tmp, 'head.json');
+    await writeFile(basePath, baseAudit.stdout, 'utf8');
+    await writeFile(headPath, headAudit.stdout, 'utf8');
+
+    const { stdout: jsonOut } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'diff', '--base-report', basePath, '--head-report', headPath, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const delta = JSON.parse(jsonOut);
+    assert.equal(delta.findingCount, 0);
+    assert.ok(delta.resolvedFindings);
+    assert.ok(delta.resolvedFindings.length >= 5);
+
+    const { stdout: mdOut } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'diff', '--base-report', basePath, '--head-report', headPath, '--format', 'markdown'],
+      { cwd: packageRoot }
+    );
+    assert.match(mdOut, /## Resolved by this PR/);
+    assert.match(mdOut, /This PR resolved \d+ pre-existing findings and introduced no new ones/);
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }

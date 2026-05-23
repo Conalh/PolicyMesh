@@ -280,6 +280,27 @@ test('diffReports: finding present in base but resolved in head is dropped', () 
   assert.equal(delta.findingCount, 0);
 });
 
+test('diffReports: surfaces resolvedFindings when base findings disappear in head', () => {
+  const fixedFinding = makeFinding({ subject: 'github', severity: 'high', message: 'mismatch' });
+  const base = makeReport([fixedFinding]);
+  const head = makeReport([]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.findingCount, 0);
+  assert.ok(delta.resolvedFindings);
+  assert.equal(delta.resolvedFindings.length, 1);
+  assert.equal(delta.resolvedFindings[0].subject, 'github');
+});
+
+test('diffReports: omits resolvedFindings field when nothing was resolved', () => {
+  const finding = makeFinding();
+  const base = makeReport([finding]);
+  const head = makeReport([finding]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.resolvedFindings, undefined);
+});
+
 test('diffReports: rating reflects only delta findings, not base or head', () => {
   // head has a pre-existing low and a new critical; delta should be critical.
   const base = makeReport([makeFinding({ subject: 'github', severity: 'low' })]);

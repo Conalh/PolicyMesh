@@ -28,8 +28,23 @@ function renderMarkdown(report) {
         }
         lines.push('');
     }
+    // In diff mode, surface findings resolved by this PR before listing
+    // new/worsened findings — green-check signal alongside the warnings.
+    if (report.resolvedFindings && report.resolvedFindings.length > 0) {
+        const count = report.resolvedFindings.length;
+        lines.push(`## Resolved by this PR (${count})`, '');
+        for (const finding of report.resolvedFindings) {
+            lines.push(`- **${finding.subject}** (${finding.file}): ${finding.message}`);
+        }
+        lines.push('');
+    }
     if (report.findings.length === 0) {
-        lines.push('No cross-surface policy conflicts or gaps detected.');
+        if (report.resolvedFindings && report.resolvedFindings.length > 0) {
+            lines.push(`This PR resolved ${report.resolvedFindings.length} pre-existing finding${report.resolvedFindings.length === 1 ? '' : 's'} and introduced no new ones.`);
+        }
+        else {
+            lines.push('No cross-surface policy conflicts or gaps detected.');
+        }
         return `${lines.join('\n')}\n`;
     }
     lines.push(`This audit produced ${report.findingCount} finding${report.findingCount === 1 ? '' : 's'} across ${report.surfaceCount} configured surface${report.surfaceCount === 1 ? '' : 's'}.`, '');

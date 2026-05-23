@@ -130,4 +130,11 @@ export interface MeshReport {
   findings: Finding[];
   effectiveUnion: string[];
   matrix: MatrixRow[];
+  /**
+   * Set only by `policymesh diff`. Findings that were present in the
+   * base report but absent in head — i.e. resolved by the changes
+   * under review. Optional and non-breaking: consumers that don't
+   * know about it just ignore the field.
+   */
+  resolvedFindings?: Finding[];
 }
