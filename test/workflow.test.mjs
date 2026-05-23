@@ -46,25 +46,15 @@ test('package metadata supports OSS discovery', async () => {
   ]);
 });
 
-test('package.json is publishable to npm with the right allowlist', async () => {
+test('package.json does not carry npm-publish prep — PolicyMesh ships only as a GitHub Action', async () => {
+  // Deliberate scoping decision: agent-gov-core is the suite's npm artefact;
+  // tools (PolicyMesh, ScopeTrail, CapabilityEcho) ship as GitHub Actions
+  // consumed via `uses: Conalh/<tool>@vX.Y.Z`. Re-introducing publish prep
+  // here means adopting a second distribution surface — discuss before re-adding.
   const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
-
-  // CLI binary registration so `npx policymesh@latest audit` works without install.
-  assert.deepEqual(packageJson.bin, { policymesh: './dist/index.js' });
-
-  // Public-by-default; first publish under @scope would otherwise fail.
-  assert.deepEqual(packageJson.publishConfig, { access: 'public' });
-
-  // Only the runtime artefacts ship. No src/, no test/, no fixtures.
-  assert.deepEqual(packageJson.files, ['dist/', 'action.yml', 'README.md', 'LICENSE']);
-
-  // prepublishOnly builds and tests before any version reaches the registry.
-  assert.equal(packageJson.scripts.prepublishOnly, 'npm run build && npm test');
-});
-
-test('dist/index.js preserves the executable shebang so npm-installed bin works', async () => {
-  const first = (await readFile(join(packageRoot, 'dist', 'index.js'), 'utf8')).split('\n', 1)[0];
-  assert.equal(first, '#!/usr/bin/env node');
+  assert.equal(packageJson.files, undefined);
+  assert.equal(packageJson.publishConfig, undefined);
+  assert.equal(packageJson.scripts.prepublishOnly, undefined);
 });
 
 test('docs/workflows/agent-governance.yml composes the suite for adopters', async () => {
