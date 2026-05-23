@@ -36,6 +36,8 @@ Five tools mapping orthogonal failure modes of AI-agent deployment:
 - **[TaskBound](https://github.com/Conalh/TaskBound)** — scope creep after the agent runs.
 - **[SessionTrail](https://github.com/Conalh/SessionTrail)** — runtime behavior review across agent session transcripts.
 
+[docs/workflows/agent-governance.yml](docs/workflows/agent-governance.yml) is a drop-in workflow template that runs ScopeTrail + PolicyMesh + CapabilityEcho together in one job per PR.
+
 ScopeTrail, PolicyMesh, and CapabilityEcho are preventive (static analysis of config and code). SessionTrail is runtime (in-session transcript review). TaskBound is detective (stated task vs. actual diff).
 
 ## Demo
@@ -75,15 +77,25 @@ PolicyMesh reports `HIGH` policy conflicts and emits GitHub warning annotations 
 ## Local Use
 
 ```powershell
+npx policymesh@latest audit --repo . --format markdown
+```
+
+Or, if you have the repo checked out and want to hack on it:
+
+```powershell
 npm install
 npm run build
 node dist/index.js audit --repo . --format markdown
 ```
 
-JSON output:
+Supported formats: `text` (default, ANSI-coloured in a TTY), `markdown`, `json`, `github` (PR annotations), and `sarif` (SARIF 2.1.0 for the GitHub Security tab and other SAST consumers).
 
 ```powershell
-node dist/index.js audit --repo test/fixtures/conflicted --format json
+npx policymesh@latest audit --repo . --format sarif > policymesh.sarif
+# Then in a workflow:
+# - uses: github/codeql-action/upload-sarif@v3
+#   with:
+#     sarif_file: policymesh.sarif
 ```
 
 ### Auto-fix mode

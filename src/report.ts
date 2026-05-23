@@ -18,6 +18,10 @@ export function renderReport(report: MeshReport, format: ReportFormat, options: 
     return renderGithubAnnotations(report, options.githubAnnotationPathPrefix);
   }
 
+  if (format === 'sarif') {
+    return renderSarif(report, options.githubAnnotationPathPrefix);
+  }
+
   return renderText(report);
 }
 
@@ -179,6 +183,125 @@ function ratingColor(rating: string, enabled: boolean): string {
     return `${ANSI.bold}${ANSI.green}NONE${ANSI.reset}`;
   }
   return severityColor(rating, rating.toUpperCase(), enabled);
+}
+
+/**
+ * SARIF 2.1.0 output for ingestion via GitHub's `upload-sarif` action,
+ * GitLab SAST, and any other tooling that consumes the standard format.
+ *
+ * Severity mapping follows SARIF conventions: critical and high map to
+ * "error", medium to "warning", low to "note". Each unique finding kind
+ * becomes a rule definition under tool.driver.rules so the GitHub
+ * Security tab can render rule details and link back to the
+ * recommendation text. Per-finding signatures populate
+ * partialFingerprints so SARIF ingestors can deduplicate across runs.
+ */
+function renderSarif(report: MeshReport, pathPrefix?: string): string {
+  const ruleIds = [...new Set(report.findings.map((finding) => finding.kind))].sort();
+  const rules = ruleIds.map((id) => {
+    const example = report.findings.find((finding) => finding.kind === id);
+    return {
+      id,
+      name: ruleNameForKind(id),
+      shortDescription: { text: shortDescriptionForKind(id) },
+      fullDescription: { text: example?.recommendation ?? shortDescriptionForKind(id) },
+      defaultConfiguration: { level: sarifLevelForSeverity(example?.severity) },
+      helpUri: 'https://github.com/Conalh/PolicyMesh#current-findings'
+    };
+  });
+
+  const results = report.findings.map((finding) => {
+    const locations = annotationLocations(finding).map((location) => ({
+      physicalLocation: {
+        artifactLocation: { uri: prefixPath(location.file, pathPrefix) },
+        ...(location.line && location.line > 0
+          ? { region: { startLine: location.line } }
+          : {})
+      }
+    }));
+
+    const partialFingerprints = finding.signature
+      ? { policymeshSignature: finding.signature }
+      : undefined;
+
+    return {
+      ruleId: finding.kind,
+      ruleIndex: ruleIds.indexOf(finding.kind),
+      level: sarifLevelForSeverity(finding.severity),
+      message: {
+        text: `${finding.message} Surfaces: ${formatSurfaceList(finding.surfaces)}. Recommendation: ${finding.recommendation}`
+      },
+      locations,
+      ...(partialFingerprints ? { partialFingerprints } : {}),
+      properties: {
+        severity: finding.severity,
+        subject: finding.subject,
+        surfaces: finding.surfaces
+      }
+    };
+  });
+
+  const sarif = {
+    version: '2.1.0',
+    $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
+    runs: [{
+      tool: {
+        driver: {
+          name: 'PolicyMesh',
+          informationUri: 'https://github.com/Conalh/PolicyMesh',
+          rules
+        }
+      },
+      results
+    }]
+  };
+
+  return `${JSON.stringify(sarif, null, 2)}\n`;
+}
+
+function sarifLevelForSeverity(severity: string | undefined): 'error' | 'warning' | 'note' {
+  switch (severity) {
+    case 'critical':
+    case 'high':
+      return 'error';
+    case 'medium':
+      return 'warning';
+    default:
+      return 'note';
+  }
+}
+
+function ruleNameForKind(kind: string): string {
+  // policy_mesh.mcp_command_mismatch -> McpCommandMismatch
+  const tail = kind.includes('.') ? kind.slice(kind.lastIndexOf('.') + 1) : kind;
+  return tail
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+}
+
+function shortDescriptionForKind(kind: string): string {
+  const descriptions: Record<string, string> = {
+    'policy_mesh.mcp_command_mismatch': 'MCP server has different launch commands across surfaces.',
+    'policy_mesh.mcp_server_missing': 'MCP server is defined on some surfaces but missing from others.',
+    'policy_mesh.mcp_enabled_mismatch': 'MCP server enabled/disabled state differs across surfaces.',
+    'policy_mesh.mcp_env_mismatch': 'MCP server environment variables differ across surfaces.',
+    'policy_mesh.mcp_header_mismatch': 'MCP server remote headers differ across surfaces.',
+    'policy_mesh.mcp_unpinned': 'MCP server uses an unpinned command (@latest or similar).',
+    'policy_mesh.hardcoded_secret': 'MCP server appears to embed a hardcoded API credential.',
+    'policy_mesh.missing_local_script': 'MCP server references a local script that does not exist.',
+    'policy_mesh.privileged_command': 'MCP server launches via an elevation utility (sudo, runas, etc.).',
+    'policy_mesh.claude_mcp_grant_missing_server': 'Claude grants an MCP server that is not defined in any MCP config.',
+    'policy_mesh.claude_deny_allow_overlap': 'Claude broad allow rules overlap with sensitive deny rules.',
+    'policy_mesh.claude_broad_allow_no_guard': 'Claude broad allow rules without a PreToolUse guard hook.',
+    'policy_mesh.codex_network_without_review': 'Codex network access enabled alongside other agent surfaces.',
+    'policy_mesh.codex_trusted_with_risky_mcp': 'Codex project trusted while MCP is unpinned or inconsistent.',
+    'policy_mesh.codex_claude_posture_gap': 'Codex sandbox posture inconsistent with Claude deny rules.',
+    'policy_mesh.aider_dangerous_allow_non_git': 'Aider bypasses the git-tracked audit trail.',
+    'policy_mesh.config_parse_error': 'Agent config file could not be parsed.',
+    'policy_mesh.exceptions_parse_error': 'Exceptions baseline file could not be parsed.'
+  };
+  return descriptions[kind] ?? kind;
 }
 
 function renderGithubAnnotations(report: MeshReport, pathPrefix?: string): string {

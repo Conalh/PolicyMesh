@@ -96,7 +96,7 @@ function parseAuditArgs(argv: string[]): ParsedAuditArgs {
 }
 
 function isReportFormat(value: string | undefined): value is ReportFormat {
-  return value === 'text' || value === 'markdown' || value === 'json' || value === 'github';
+  return value === 'text' || value === 'markdown' || value === 'json' || value === 'github' || value === 'sarif';
 }
 
 const SURFACE_IDS: SurfaceId[] = [
@@ -209,7 +209,7 @@ if (invokedPath) {
 
 function usage(): string {
   return [
-    'Usage: policymesh audit --repo <path> [--format text|markdown|json|github] [--recursive]',
+    'Usage: policymesh audit --repo <path> [--format text|markdown|json|github|sarif] [--recursive]',
     `       ${fixUsage()}`,
     `       ${renderUsage()}`,
     `       ${diffUsage()}`
@@ -426,7 +426,7 @@ function fixUsage(): string {
 }
 
 function renderUsage(): string {
-  return 'policymesh render --input <json-file> --format text|markdown|json|github [--annotation-path-prefix <path>]';
+  return 'policymesh render --input <json-file> --format text|markdown|json|github|sarif [--annotation-path-prefix <path>]';
 }
 
 type ParsedRenderArgs =

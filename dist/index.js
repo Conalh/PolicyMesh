@@ -77,7 +77,7 @@ function parseAuditArgs(argv) {
     return { ok: true, repo, format, recursive };
 }
 function isReportFormat(value) {
-    return value === 'text' || value === 'markdown' || value === 'json' || value === 'github';
+    return value === 'text' || value === 'markdown' || value === 'json' || value === 'github' || value === 'sarif';
 }
 const SURFACE_IDS = [
     'root_mcp',
@@ -177,7 +177,7 @@ if (invokedPath) {
 }
 function usage() {
     return [
-        'Usage: policymesh audit --repo <path> [--format text|markdown|json|github] [--recursive]',
+        'Usage: policymesh audit --repo <path> [--format text|markdown|json|github|sarif] [--recursive]',
         `       ${fixUsage()}`,
         `       ${renderUsage()}`,
         `       ${diffUsage()}`
@@ -364,7 +364,7 @@ function fixUsage() {
     return 'policymesh fix --repo <path> --canonical <surface> [--write]';
 }
 function renderUsage() {
-    return 'policymesh render --input <json-file> --format text|markdown|json|github [--annotation-path-prefix <path>]';
+    return 'policymesh render --input <json-file> --format text|markdown|json|github|sarif [--annotation-path-prefix <path>]';
 }
 function parseRenderArgs(argv) {
     let input;

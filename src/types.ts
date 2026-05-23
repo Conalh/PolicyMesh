@@ -141,7 +141,7 @@ export interface MatrixRow {
 
 export type MeshRating = 'none' | Severity;
 
-export type ReportFormat = 'text' | 'markdown' | 'json' | 'github';
+export type ReportFormat = 'text' | 'markdown' | 'json' | 'github' | 'sarif';
 
 export interface MeshReport {
   rating: MeshRating;

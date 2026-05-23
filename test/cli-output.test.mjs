@@ -1278,6 +1278,84 @@ test('CLI Markdown matrix cells stay free of unescaped pipes for pipe-prone comm
   assert.doesNotMatch(matrixRow, /https:\/\/x\.sh/);
 });
 
+test('CLI emits SARIF 2.1.0 output ingestible by GitHub Security tab', async () => {
+  const repo = join(testDir, 'fixtures', 'conflicted');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'sarif'],
+    { cwd: packageRoot }
+  );
+  const sarif = JSON.parse(stdout);
+
+  // Top-level shape conforms to SARIF 2.1.0.
+  assert.equal(sarif.version, '2.1.0');
+  assert.equal(typeof sarif.$schema, 'string');
+  assert.equal(sarif.runs.length, 1);
+  const run = sarif.runs[0];
+  assert.equal(run.tool.driver.name, 'PolicyMesh');
+  assert.equal(run.tool.driver.informationUri, 'https://github.com/Conalh/PolicyMesh');
+  assert.ok(Array.isArray(run.tool.driver.rules));
+  assert.ok(run.tool.driver.rules.length > 0);
+
+  // Every rule has the required fields and a severity level.
+  for (const rule of run.tool.driver.rules) {
+    assert.match(rule.id, /^policy_mesh\./);
+    assert.equal(typeof rule.shortDescription.text, 'string');
+    assert.ok(['error', 'warning', 'note'].includes(rule.defaultConfiguration.level));
+  }
+
+  // Every result references a defined rule, has a physical location, and
+  // carries a partialFingerprint derived from the finding signature so
+  // ingestors can deduplicate across runs.
+  const ruleIds = new Set(run.tool.driver.rules.map((rule) => rule.id));
+  for (const result of run.results) {
+    assert.ok(ruleIds.has(result.ruleId), `result references undefined rule ${result.ruleId}`);
+    assert.ok(['error', 'warning', 'note'].includes(result.level));
+    assert.ok(result.locations.length > 0);
+    assert.equal(typeof result.locations[0].physicalLocation.artifactLocation.uri, 'string');
+    assert.match(result.partialFingerprints.policymeshSignature, /^[a-f0-9]{16}$/);
+  }
+
+  // SARIF levels map sensibly from PolicyMesh severities. Critical and
+  // high are error; medium is warning; low is note.
+  const sevByLevel = new Map();
+  for (const result of run.results) {
+    sevByLevel.set(result.properties.severity, result.level);
+  }
+  if (sevByLevel.has('high')) {
+    assert.equal(sevByLevel.get('high'), 'error');
+  }
+  if (sevByLevel.has('medium')) {
+    assert.equal(sevByLevel.get('medium'), 'warning');
+  }
+});
+
+test('CLI render passes through SARIF format from a saved audit JSON', async () => {
+  const tmp = await mkdtemp(join(tmpdir(), 'policymesh-sarif-'));
+  try {
+    const { stdout: jsonOut } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', join(testDir, 'fixtures', 'conflicted'), '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const jsonPath = join(tmp, 'report.json');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(jsonPath, jsonOut, 'utf8');
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'render', '--input', jsonPath, '--format', 'sarif'],
+      { cwd: packageRoot }
+    );
+    const sarif = JSON.parse(stdout);
+    assert.equal(sarif.version, '2.1.0');
+    assert.ok(sarif.runs[0].results.length > 0);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
 test('CLI emits GitHub warning annotations', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 

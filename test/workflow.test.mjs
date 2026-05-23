@@ -46,6 +46,38 @@ test('package metadata supports OSS discovery', async () => {
   ]);
 });
 
+test('package.json is publishable to npm with the right allowlist', async () => {
+  const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+
+  // CLI binary registration so `npx policymesh@latest audit` works without install.
+  assert.deepEqual(packageJson.bin, { policymesh: './dist/index.js' });
+
+  // Public-by-default; first publish under @scope would otherwise fail.
+  assert.deepEqual(packageJson.publishConfig, { access: 'public' });
+
+  // Only the runtime artefacts ship. No src/, no test/, no fixtures.
+  assert.deepEqual(packageJson.files, ['dist/', 'action.yml', 'README.md', 'LICENSE']);
+
+  // prepublishOnly builds and tests before any version reaches the registry.
+  assert.equal(packageJson.scripts.prepublishOnly, 'npm run build && npm test');
+});
+
+test('dist/index.js preserves the executable shebang so npm-installed bin works', async () => {
+  const first = (await readFile(join(packageRoot, 'dist', 'index.js'), 'utf8')).split('\n', 1)[0];
+  assert.equal(first, '#!/usr/bin/env node');
+});
+
+test('docs/workflows/agent-governance.yml composes the suite for adopters', async () => {
+  const template = await readFile(join(packageRoot, 'docs', 'workflows', 'agent-governance.yml'), 'utf8');
+
+  assert.match(template, /uses: Conalh\/ScopeTrail/);
+  assert.match(template, /uses: Conalh\/PolicyMesh/);
+  assert.match(template, /uses: Conalh\/CapabilityEcho/);
+  // PolicyMesh in the template uses the recommended diff-mode defaults.
+  assert.match(template, /diff: true/);
+  assert.match(template, /fetch-depth: 0/);
+});
+
 test('action.yml declares audit inputs and outputs', async () => {
   const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
 

@@ -1,0 +1,49 @@
+# Drop this file into .github/workflows/ to run the agent-governance suite
+# on every pull request. Each tool covers an orthogonal failure mode:
+#
+#   ScopeTrail     — config drift between this PR and the base branch
+#   PolicyMesh     — cross-surface policy contradictions in the head ref
+#   CapabilityEcho — capability drift from code, not just config
+#
+# All three are advisory by default (fail-on: none). Tighten the thresholds
+# per-tool as your team gets comfortable.
+
+name: Agent governance
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scopetrail:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: Conalh/ScopeTrail@v0.1.11
+        with:
+          fail-on: none
+
+  policymesh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0   # required for diff mode
+      - uses: Conalh/PolicyMesh@v0.3.0
+        with:
+          fail-on: high
+          diff: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  capabilityecho:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: Conalh/CapabilityEcho@v0.1.0
+        with:
+          fail-on: none
