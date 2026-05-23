@@ -254,6 +254,23 @@ Drop a `.policymesh-exceptions.json` at the repo root to suppress known and docu
 
 Matching findings (by `kind` + `subject`) are silently suppressed. Once `expiry` passes, the finding is surfaced again — downgraded to `low` and prefixed `[EXPIRED WHITELIST]` — so stale baselines stay visible instead of rotting silently.
 
+For higher-assurance baselines, add a `signature` from the finding's audit output:
+
+```json
+{
+  "exceptions": [
+    {
+      "kind": "policy_mesh.mcp_enabled_mismatch",
+      "subject": "github",
+      "signature": "a1b2c3d4e5f6a7b8",
+      "reason": "Approved by @security; locked to the reviewed violation."
+    }
+  ]
+}
+```
+
+Every finding in the audit JSON now carries a `signature` field — a 16-char hash over the subject, file, and normalized message. Copy that value into the exception. If the underlying violation later changes (e.g. someone rewrites the MCP command to run a different binary), the signature stops matching and the finding re-fires with a `[SIGNATURE MISMATCH]` prefix so it gets re-reviewed rather than silently riding a stale approval. Exceptions without a `signature` keep the v0.2.0 kind+subject-only behaviour.
+
 ## Complements ScopeTrail
 
 Use both tools together:

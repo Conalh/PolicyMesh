@@ -20,6 +20,17 @@ export interface Finding {
   message: string;
   recommendation: string;
   surfaces: SurfaceId[];
+  /**
+   * Short, content-derived hash that captures the *meaning* of the
+   * finding (subject + file + normalized message). Stable across
+   * audit runs as long as the underlying violation is unchanged.
+   * Users paste this into a .policymesh-exceptions.json entry's
+   * `signature` field to lock the exception to the specific
+   * violation that was reviewed — if the violation later changes
+   * (e.g. a command gets rewritten), the signature stops matching
+   * and the exception no longer suppresses.
+   */
+  signature?: string;
 }
 
 export interface FindingLocation {
@@ -112,6 +123,15 @@ export interface Exception {
    * "[EXPIRED WHITELIST]" prefix on the message.
    */
   expiry?: string;
+  /**
+   * Optional content-derived hash from the finding the reviewer
+   * approved. When present, the exception suppresses only when the
+   * current finding's signature matches — if the underlying violation
+   * changes (e.g. a command is rewritten to something dangerous), the
+   * signature mismatches and the finding re-fires for re-review.
+   * Omit to suppress purely by kind+subject (the v0.2.0 behavior).
+   */
+  signature?: string;
 }
 
 export interface MatrixRow {

@@ -1,7 +1,7 @@
 import { countConfiguredSurfaces, parseRepoPolicies } from './parsers/index.js';
 import { buildEffectiveUnion, buildSurfaceMatrix, runMeshRules } from './mesh/engine.js';
 import { detectMissingLocalScripts } from './mesh/local-scripts.js';
-import { applyExceptions, loadExceptions } from './exceptions.js';
+import { applyExceptions, loadExceptions, signFinding } from './exceptions.js';
 import type { Finding, MeshRating, MeshReport, Severity } from './types.js';
 
 const severityRank: Record<MeshRating, number> = {
@@ -22,9 +22,11 @@ export async function auditRepo(root: string): Promise<MeshReport> {
     ...(policies.parseFindings ?? []),
     ...runMeshRules(policies),
     ...missingScriptFindings
-  ];
+  ].map(signFinding);
   const filtered = applyExceptions(rawFindings, exceptions);
-  const findings = exceptionsParseFinding ? [...filtered, exceptionsParseFinding] : filtered;
+  const findings = exceptionsParseFinding
+    ? [...filtered, signFinding(exceptionsParseFinding)]
+    : filtered;
 
   return {
     rating: rateFindings(findings),

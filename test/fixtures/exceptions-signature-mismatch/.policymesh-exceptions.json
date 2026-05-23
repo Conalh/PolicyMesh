@@ -1,0 +1,10 @@
+{
+  "exceptions": [
+    {
+      "kind": "policy_mesh.mcp_enabled_mismatch",
+      "subject": "github",
+      "reason": "Approved while cursor pinned to @1.2.3 only — signature locks this to that approved state.",
+      "signature": "0000000000000000"
+    }
+  ]
+}

@@ -1,4 +1,25 @@
+import { createHash } from 'node:crypto';
 import { configPath, isRecord, readJsonObjectWithSource } from './discovery.js';
+/**
+ * Stable hash over the subject + file + normalized message of a finding.
+ * Used to lock exception baselines to the specific violation reviewers
+ * approved, so a later commit that mutates the violation re-fires the
+ * finding instead of riding the existing exception.
+ *
+ * Truncated to 16 hex chars (64 bits) — plenty of collision resistance
+ * for the per-repo audit domain, short enough to type and review.
+ */
+export function computeFindingSignature(finding) {
+    const normalizedMessage = finding.message
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+    const material = `${finding.subject}\n${finding.file}\n${normalizedMessage}`;
+    return createHash('sha256').update(material).digest('hex').slice(0, 16);
+}
+export function signFinding(finding) {
+    return { ...finding, signature: computeFindingSignature(finding) };
+}
 const EXCEPTIONS_FILE = '.policymesh-exceptions.json';
 export async function loadExceptions(root) {
     const source = await readJsonObjectWithSource(configPath(root, EXCEPTIONS_FILE));
@@ -36,7 +57,8 @@ export async function loadExceptions(root) {
             kind: entry.kind,
             subject: entry.subject,
             reason: typeof entry.reason === 'string' ? entry.reason : undefined,
-            expiry: typeof entry.expiry === 'string' ? entry.expiry : undefined
+            expiry: typeof entry.expiry === 'string' ? entry.expiry : undefined,
+            signature: typeof entry.signature === 'string' ? entry.signature : undefined
         });
     }
     return { exceptions };
@@ -57,6 +79,20 @@ export function applyExceptions(findings, exceptions, now = new Date()) {
         if (!match) {
             result.push(finding);
             continue;
+        }
+        // Fingerprint mismatch invalidates the exception — the underlying
+        // violation has changed since the reviewer approved it, so we must
+        // surface the finding for re-review rather than silently riding the
+        // stale exception.
+        if (match.signature) {
+            const currentSignature = finding.signature ?? computeFindingSignature(finding);
+            if (currentSignature !== match.signature) {
+                result.push({
+                    ...finding,
+                    message: `[SIGNATURE MISMATCH] ${finding.message} (exception signature ${match.signature.slice(0, 8)}... no longer matches finding signature ${currentSignature.slice(0, 8)}...; re-review and update the baseline)`
+                });
+                continue;
+            }
         }
         if (match.expiry && isExpired(match.expiry, now)) {
             result.push(downgradeExpired(finding));

@@ -633,6 +633,42 @@ test('CLI reports MCP servers launching via privileged commands', async () => {
   assert.equal(privilegedFindings.some((f) => f.subject === 'user-space'), false);
 });
 
+test('CLI signature-locked exception re-fires when underlying violation changes', async () => {
+  const repo = join(testDir, 'fixtures', 'exceptions-signature-mismatch');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  // The exception's signature is intentionally stale (0000...); the underlying
+  // enabled-state mismatch has changed (versions diverged), so we expect the
+  // finding to surface with the SIGNATURE MISMATCH prefix rather than be silenced.
+  const enabledMismatch = report.findings.find(
+    (finding) => finding.kind === 'policy_mesh.mcp_enabled_mismatch'
+  );
+  assert.ok(enabledMismatch, 'expected mcp_enabled_mismatch to fire despite the kind+subject match');
+  assert.match(enabledMismatch.message, /^\[SIGNATURE MISMATCH\]/);
+  // Every finding in the report now carries a signature so users can copy it.
+  assert.match(enabledMismatch.signature, /^[a-f0-9]{16}$/);
+});
+
+test('CLI emits a signature on every finding so reviewers can lock baselines', async () => {
+  const repo = join(testDir, 'fixtures', 'conflicted');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+  for (const finding of report.findings) {
+    assert.match(finding.signature, /^[a-f0-9]{16}$/, `finding ${finding.kind}/${finding.subject} should expose a signature`);
+  }
+});
+
 test('CLI reports malformed .policymesh-exceptions.json instead of crashing', async () => {
   const repo = join(testDir, 'fixtures', 'exceptions-malformed');
 

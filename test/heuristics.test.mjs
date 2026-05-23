@@ -164,6 +164,44 @@ test('applyExceptions: expired exception surfaces finding with downgrade and pre
   assert.match(result[0].message, /^\[EXPIRED WHITELIST\]/);
 });
 
+test('applyExceptions: exception with matching signature still suppresses', () => {
+  const finding = makeFinding();
+  const { computeFindingSignature } = exceptionsModule;
+  const exceptions = [{
+    kind: finding.kind,
+    subject: finding.subject,
+    signature: computeFindingSignature(finding)
+  }];
+  assert.deepEqual(applyExceptions([finding], exceptions), []);
+});
+
+test('applyExceptions: signature mismatch surfaces finding with explanatory prefix', () => {
+  const finding = makeFinding();
+  const exceptions = [{
+    kind: finding.kind,
+    subject: finding.subject,
+    signature: 'deadbeefdeadbeef' // never matches
+  }];
+  const result = applyExceptions([finding], exceptions);
+  assert.equal(result.length, 1);
+  assert.match(result[0].message, /^\[SIGNATURE MISMATCH\]/);
+  assert.match(result[0].message, /re-review and update the baseline/);
+});
+
+test('applyExceptions: signature takes precedence over expiry', () => {
+  const finding = makeFinding();
+  const exceptions = [{
+    kind: finding.kind,
+    subject: finding.subject,
+    signature: 'deadbeefdeadbeef',
+    expiry: '2999-12-31'
+  }];
+  const result = applyExceptions([finding], exceptions);
+  // Signature mismatch fires the finding regardless of an otherwise-active expiry.
+  assert.equal(result.length, 1);
+  assert.match(result[0].message, /^\[SIGNATURE MISMATCH\]/);
+});
+
 test('applyExceptions: non-matching kind or subject passes through unchanged', () => {
   const findings = [makeFinding()];
   const wrongKind = [{ kind: 'policy_mesh.mcp_command_mismatch', subject: 'github' }];
