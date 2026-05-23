@@ -1,0 +1,11 @@
+{
+  // GitHub MCP is intentionally turned off in Cursor while we evaluate
+  // a regression — see incident PM-457.
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@1.2.3"],
+      "disabled": true, /* matches root's pin; only the toggle differs */
+    },
+  },
+}

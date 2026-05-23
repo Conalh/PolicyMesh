@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { stripJsonComments } from 'agent-gov-core';
 import { parseRepoPolicies } from './parsers/index.js';
-import { configPath } from './discovery.js';
+import { configPath, lineOfJsonKey } from './discovery.js';
 import type { McpServer, RepoPolicies, SurfaceId } from './types.js';
 
 const JSON_MCP_SURFACES: SurfaceId[] = [
@@ -104,14 +105,19 @@ function serversBySurface(policies: RepoPolicies, surfaceId: SurfaceId): Map<str
 
 export interface ApplyFixResult {
   applied: PlannedFix[];
-  skipped: PlannedFix[];
+  skipped: SkippedApply[];
+}
+
+export interface SkippedApply {
+  fix: PlannedFix;
+  reason: string;
 }
 
 export async function applyEnabledStateFixes(plan: FixPlan, root: string, write: boolean): Promise<ApplyFixResult> {
   const applied: PlannedFix[] = [];
-  const skipped: PlannedFix[] = [];
+  const skipped: SkippedApply[] = [];
 
-  // Group fixes by file so we read/parse/write each config at most once.
+  // Group fixes by file so we read/edit each config at most once.
   const byFile = new Map<string, PlannedFix[]>();
   for (const fix of plan.fixes) {
     const existing = byFile.get(fix.file) ?? [];
@@ -121,74 +127,263 @@ export async function applyEnabledStateFixes(plan: FixPlan, root: string, write:
 
   for (const [file, fileFixes] of byFile) {
     const fullPath = configPath(root, file);
-    const raw = await readFile(fullPath, 'utf8');
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      for (const fix of fileFixes) {
-        skipped.push(fix);
-      }
-      continue;
-    }
+    const originalText = await readFile(fullPath, 'utf8');
+    const editor = new JsonLineEditor(originalText);
 
-    const serverMap = readServerMap(json);
-    if (!serverMap) {
-      for (const fix of fileFixes) {
-        skipped.push(fix);
-      }
-      continue;
-    }
-
-    let mutated = false;
     for (const fix of fileFixes) {
-      const server = serverMap[fix.server];
-      if (!isRecord(server)) {
-        skipped.push(fix);
-        continue;
-      }
-      const keyChoice = chooseKey(server, fix.surface);
-      if (keyChoice === 'enabled') {
-        server.enabled = fix.after;
-        delete server.disabled;
+      const result = editor.alignEnabledState(fix.server, fix.after, fix.surface);
+      if (result.ok) {
+        applied.push(fix);
       } else {
-        server.disabled = !fix.after;
-        delete server.enabled;
+        skipped.push({ fix, reason: result.reason });
       }
-      mutated = true;
-      applied.push(fix);
     }
 
-    if (mutated && write) {
-      await writeFile(fullPath, `${JSON.stringify(json, null, 2)}\n`, 'utf8');
+    if (editor.mutated() && write) {
+      await writeFile(fullPath, editor.text(), 'utf8');
     }
   }
 
   return { applied, skipped };
 }
 
-function readServerMap(json: Record<string, unknown>): Record<string, unknown> | undefined {
-  for (const key of ['mcpServers', 'servers']) {
-    const value = json[key];
-    if (isRecord(value)) {
-      return value;
+/**
+ * Line-targeted JSONC editor. We deliberately do NOT round-trip the file
+ * through JSON.parse / JSON.stringify because that strips comments,
+ * trailing commas, and the team's original indentation — exactly the
+ * formatting choices that make a config human-readable in code review.
+ *
+ * Instead, we locate the relevant `enabled` or `disabled` line by
+ * walking the comment-stripped text with brace counting (so we never
+ * confuse a nested object's `enabled` with the server's own), then
+ * splice the value on the original line. Everything else in the file
+ * is byte-identical to what the user authored.
+ */
+class JsonLineEditor {
+  private lines: string[];
+  private mutatedFlag = false;
+
+  constructor(originalText: string) {
+    this.lines = originalText.split(/\r?\n/);
+  }
+
+  mutated(): boolean {
+    return this.mutatedFlag;
+  }
+
+  text(): string {
+    return this.lines.join('\n');
+  }
+
+  alignEnabledState(serverName: string, enabled: boolean, surface: SurfaceId): { ok: true } | { ok: false; reason: string } {
+    const original = this.text();
+    const stripped = stripJsonComments(original);
+    const serverKeyLine = lineOfJsonKey(stripped, serverName);
+    if (!serverKeyLine) {
+      return { ok: false, reason: 'server entry not found in file' };
+    }
+
+    const block = findServerBlock(stripped, serverKeyLine);
+    if (!block) {
+      return { ok: false, reason: 'could not locate server block braces' };
+    }
+
+    const existing = findEnabledOrDisabledLine(stripped, block);
+    if (existing) {
+      // In-place value replacement — preserves indentation, comments
+      // on the line, trailing commas, everything.
+      const newValue = existing.key === 'enabled' ? String(enabled) : String(!enabled);
+      const updated = replaceBooleanValue(this.lines[existing.lineIndex], existing.key, newValue);
+      if (!updated) {
+        return { ok: false, reason: 'value replacement could not locate boolean token' };
+      }
+      this.lines[existing.lineIndex] = updated;
+      this.mutatedFlag = true;
+      return { ok: true };
+    }
+
+    // Field absent — insertion path. Determine child indent and any
+    // trailing-comma convention from existing children, then splice a
+    // new line in just before the server block's closing brace.
+    const inserted = insertEnabledLine(this.lines, block, surface, enabled);
+    if (!inserted.ok) {
+      return inserted;
+    }
+    this.mutatedFlag = true;
+    return { ok: true };
+  }
+}
+
+interface ServerBlock {
+  /** 0-indexed line containing the opening `{` of the server's value. */
+  openLine: number;
+  /** 0-indexed line containing the matching closing `}`. */
+  closeLine: number;
+}
+
+function findServerBlock(stripped: string, serverKeyLine: number): ServerBlock | undefined {
+  const lines = stripped.split(/\r?\n/);
+  // Find the first '{' on or after the server key line.
+  let openLine = -1;
+  for (let i = serverKeyLine - 1; i < lines.length; i += 1) {
+    if (lines[i].includes('{')) {
+      openLine = i;
+      break;
+    }
+  }
+  if (openLine < 0) {
+    return undefined;
+  }
+
+  // From the first '{' on openLine, count braces (respecting strings)
+  // until depth returns to zero.
+  let depth = 0;
+  let started = false;
+  let inString = false;
+  let escape = false;
+
+  for (let i = openLine; i < lines.length; i += 1) {
+    const line = lines[i];
+    for (let c = 0; c < line.length; c += 1) {
+      const ch = line[c];
+      if (inString) {
+        if (escape) {
+          escape = false;
+        } else if (ch === '\\') {
+          escape = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === '{') {
+        depth += 1;
+        started = true;
+      } else if (ch === '}') {
+        depth -= 1;
+        if (started && depth === 0) {
+          return { openLine, closeLine: i };
+        }
+      }
     }
   }
   return undefined;
 }
 
-function chooseKey(server: Record<string, unknown>, surface: SurfaceId): 'enabled' | 'disabled' {
-  if ('enabled' in server && typeof server.enabled === 'boolean') {
-    return 'enabled';
-  }
-  if ('disabled' in server && typeof server.disabled === 'boolean') {
-    return 'disabled';
-  }
-  return PREFERRED_KEY[surface];
+interface EnabledFieldLocation {
+  lineIndex: number; // 0-indexed
+  key: 'enabled' | 'disabled';
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+function findEnabledOrDisabledLine(stripped: string, block: ServerBlock): EnabledFieldLocation | undefined {
+  const lines = stripped.split(/\r?\n/);
+  // We only care about fields DIRECTLY inside the server block, not
+  // nested under a child object. Track depth from the open brace.
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = block.openLine; i <= block.closeLine; i += 1) {
+    const line = lines[i];
+    // Within the body of the server block (depth === 1 after the
+    // opening brace), inspect for the enabled/disabled key. Skip the
+    // open-line's content before the brace and the close-line's
+    // content after.
+    const isDirectChildLine = depth === 1 && i > block.openLine;
+    if (isDirectChildLine) {
+      const match = /"(enabled|disabled)"\s*:\s*(true|false)/.exec(line);
+      if (match) {
+        return { lineIndex: i, key: match[1] as 'enabled' | 'disabled' };
+      }
+    }
+
+    // Update depth/state at end of the line by replaying chars.
+    for (let c = 0; c < line.length; c += 1) {
+      const ch = line[c];
+      if (inString) {
+        if (escape) {
+          escape = false;
+        } else if (ch === '\\') {
+          escape = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === '{') {
+        depth += 1;
+      } else if (ch === '}') {
+        depth -= 1;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function replaceBooleanValue(line: string, key: 'enabled' | 'disabled', newValue: string): string | undefined {
+  const regex = new RegExp(`("${key}"\\s*:\\s*)(true|false)`);
+  if (!regex.test(line)) {
+    return undefined;
+  }
+  return line.replace(regex, `$1${newValue}`);
+}
+
+function insertEnabledLine(
+  lines: string[],
+  block: ServerBlock,
+  surface: SurfaceId,
+  enabled: boolean
+): { ok: true } | { ok: false; reason: string } {
+  const key = PREFERRED_KEY[surface];
+  const value = key === 'enabled' ? enabled : !enabled;
+
+  // Sample the indent of the first non-empty line strictly between
+  // openLine and closeLine. If the block is empty, indent the new
+  // line by adding two spaces to the open line's indent.
+  let childIndent: string | undefined;
+  for (let i = block.openLine + 1; i < block.closeLine; i += 1) {
+    const m = /^(\s+)\S/.exec(lines[i]);
+    if (m) {
+      childIndent = m[1];
+      break;
+    }
+  }
+  if (childIndent === undefined) {
+    const openIndentMatch = /^(\s*)/.exec(lines[block.openLine]);
+    childIndent = `${openIndentMatch?.[1] ?? ''}  `;
+  }
+
+  // Find the previous non-empty line inside the block. If it ends in a
+  // value or `]` or `}` without a trailing comma, add one.
+  let previousNonEmpty = -1;
+  for (let i = block.closeLine - 1; i > block.openLine; i -= 1) {
+    if (lines[i].trim().length > 0) {
+      previousNonEmpty = i;
+      break;
+    }
+  }
+  if (previousNonEmpty < 0) {
+    return { ok: false, reason: 'cannot insert into empty server block in v1' };
+  }
+
+  const prev = lines[previousNonEmpty];
+  const prevTrim = prev.replace(/\s+$/, '');
+  if (!/[,]\s*(?:\/\/.*)?$/.test(prevTrim) && !prevTrim.endsWith(',')) {
+    lines[previousNonEmpty] = `${prevTrim},${prev.slice(prevTrim.length)}`;
+  }
+
+  const newLine = `${childIndent}"${key}": ${value}`;
+  lines.splice(block.closeLine, 0, newLine);
+  return { ok: true };
 }
 
 export function formatFixPlan(plan: FixPlan, applied?: ApplyFixResult): string {
@@ -209,8 +404,8 @@ export function formatFixPlan(plan: FixPlan, applied?: ApplyFixResult): string {
   }
   if (applied && applied.skipped.length > 0) {
     lines.push('Skipped:');
-    for (const fix of applied.skipped) {
-      lines.push(`- ${fix.description} (server entry not found or unparseable)`);
+    for (const skip of applied.skipped) {
+      lines.push(`- ${skip.fix.description} (${skip.reason})`);
     }
   }
   return `${lines.join('\n')}\n`;

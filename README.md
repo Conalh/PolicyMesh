@@ -95,7 +95,7 @@ node dist/index.js fix --repo . --canonical root_mcp           # dry-run
 node dist/index.js fix --repo . --canonical root_mcp --write   # apply
 ```
 
-The `--canonical` flag is required because the engine cannot guess which surface holds the intended policy. v1 only handles `mcp_enabled_mismatch` and only edits JSON MCP surfaces (Codex TOML is out of scope). `--write` rewrites edited JSON files via `JSON.stringify`, which **does not preserve comments or original indentation**; back up files or commit before running with `--write`.
+The `--canonical` flag is required because the engine cannot guess which surface holds the intended policy. v1 only handles `mcp_enabled_mismatch` and only edits JSON MCP surfaces (Codex TOML is out of scope). `--write` performs line-targeted in-place edits that preserve comments, trailing commas, and original indentation — only the boolean token on the existing `enabled`/`disabled` line changes.
 
 ### Monorepos
 

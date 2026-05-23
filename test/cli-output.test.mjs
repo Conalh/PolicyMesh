@@ -947,6 +947,43 @@ test('CLI fix dry-run lists planned enabled-state edits without modifying files'
   assert.equal(after, before);
 });
 
+test('CLI fix --write preserves comments and trailing commas (JSONC)', async () => {
+  const src = join(testDir, 'fixtures', 'fix-preserves-comments');
+  const repo = await mkdtemp(join(tmpdir(), 'policymesh-fix-jsonc-'));
+  try {
+    await copyFixture(src, repo);
+    const cursorPath = join(repo, '.cursor', 'mcp.json');
+    const before = await readFile(cursorPath, 'utf8');
+
+    await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'fix', '--repo', repo, '--canonical', 'root_mcp', '--write'],
+      { cwd: packageRoot }
+    );
+
+    const after = await readFile(cursorPath, 'utf8');
+
+    // The disabled toggle flipped.
+    assert.match(after, /"disabled":\s*false/);
+    assert.doesNotMatch(after, /"disabled":\s*true/);
+
+    // Comments survived.
+    assert.match(after, /\/\/ GitHub MCP is intentionally turned off/);
+    assert.match(after, /\/\* matches root's pin; only the toggle differs \*\//);
+
+    // Trailing commas survived.
+    assert.match(after, /"disabled":\s*false,/);
+    assert.match(after, /},\s*\n\s*},\s*\n}\s*$/);
+
+    // Nothing else changed about the file shape.
+    const beforeStripped = before.replace(/"disabled":\s*true/, '');
+    const afterStripped = after.replace(/"disabled":\s*false/, '');
+    assert.equal(beforeStripped, afterStripped, 'only the boolean token should differ between before and after');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('CLI fix --write applies the planned edits and aligns enabled state', async () => {
   const src = join(testDir, 'fixtures', 'fix-enabled-mismatch');
   const repo = await mkdtemp(join(tmpdir(), 'policymesh-fix-'));
@@ -960,7 +997,6 @@ test('CLI fix --write applies the planned edits and aligns enabled state', async
     );
 
     assert.match(stdout, /Applied 1 edit\(s\)/);
-    assert.match(stdout, /--write reformats edited JSON files/);
 
     const updated = JSON.parse(await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8'));
     // Cursor's `disabled` was rewritten to false (server is now active to match root).

@@ -170,7 +170,6 @@ async function runFix(argv: string[]): Promise<number> {
     if (parsed.write) {
       const applied = await applyEnabledStateFixes(plan, parsed.repo, true);
       process.stdout.write(formatFixPlan(plan, applied));
-      process.stdout.write('Note: --write reformats edited JSON files via JSON.stringify; comments and original indentation are not preserved.\n');
     } else {
       process.stdout.write(formatFixPlan(plan));
     }
