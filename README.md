@@ -285,6 +285,25 @@ For higher-assurance baselines, add a `signature` from the finding's audit outpu
 
 Every finding in the audit JSON now carries a `signature` field — a 16-char hash over the subject, file, and normalized message. Copy that value into the exception. If the underlying violation later changes (e.g. someone rewrites the MCP command to run a different binary), the signature stops matching and the finding re-fires with a `[SIGNATURE MISMATCH]` prefix so it gets re-reviewed rather than silently riding a stale approval. Exceptions without a `signature` keep the v0.2.0 kind+subject-only behaviour.
 
+### Defined-good baseline
+
+`.policymesh-baseline.json` is the positive-space counterpart to exceptions: it encodes the state the team intends to hold. Drift from that state fires a HIGH-severity finding even when no individual rule fires.
+
+```json
+{
+  "expectedRating": "none",
+  "pinnedMcpServers": {
+    "github": "1.2.3",
+    "linear": "0.9.0"
+  }
+}
+```
+
+- `expectedRating` — the maximum tolerable rating. Any rating above it produces `policy_mesh.baseline_rating_drift`.
+- `pinnedMcpServers` — exact versions that must hold across every surface where the server is configured. Drift produces `policy_mesh.baseline_version_drift` per offending surface.
+
+Exceptions suppress noise the team has accepted; baseline encodes intent the team requires. Use both — they're orthogonal.
+
 ## Complements ScopeTrail
 
 Use both tools together:

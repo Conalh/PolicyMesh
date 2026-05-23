@@ -131,6 +131,22 @@ export interface RepoPolicies {
   parseFindings?: Finding[];
 }
 
+export interface RepoBaseline {
+  /**
+   * Maximum tolerable rating. Audit findings whose overall rating
+   * exceeds this trigger a baseline_rating_drift finding so the
+   * workflow fails on drift FROM the team standard, not on absolute
+   * thresholds. Optional.
+   */
+  expectedRating?: MeshRating;
+  /**
+   * Map of MCP server name -> exact pinned version that must hold
+   * across all surfaces where the server is configured. Drift on any
+   * surface emits a baseline_version_drift finding.
+   */
+  pinnedMcpServers?: Record<string, string>;
+}
+
 export interface Exception {
   /** Finding kind to suppress, e.g. "policy_mesh.mcp_enabled_mismatch". */
   kind: string;

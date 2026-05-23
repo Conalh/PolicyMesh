@@ -675,6 +675,56 @@ test('CLI emits a signature on every finding so reviewers can lock baselines', a
   }
 });
 
+test('CLI baseline expectedRating fires drift finding when audit rating exceeds it', async () => {
+  const repo = join(testDir, 'fixtures', 'baseline-rating-drift');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const drift = report.findings.find((finding) => finding.kind === 'policy_mesh.baseline_rating_drift');
+  assert.ok(drift, 'expected baseline_rating_drift finding when actual rating exceeds expectedRating');
+  assert.equal(drift.severity, 'high');
+  assert.match(drift.message, /exceeds baseline expectedRating "none"/);
+  // The unpinned finding still fires too; baseline drift is additive.
+  assert.ok(report.findings.some((finding) => finding.kind === 'policy_mesh.mcp_unpinned'));
+});
+
+test('CLI baseline pinnedMcpServers fires version drift finding when actual differs', async () => {
+  const repo = join(testDir, 'fixtures', 'baseline-version-drift');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const drift = report.findings.find((finding) => finding.kind === 'policy_mesh.baseline_version_drift');
+  assert.ok(drift);
+  assert.equal(drift.severity, 'high');
+  assert.equal(drift.subject, 'github');
+  assert.match(drift.message, /pinned to "2\.0\.0".*baseline expects "1\.2\.3"/);
+});
+
+test('CLI baseline satisfied produces no drift findings', async () => {
+  const repo = join(testDir, 'fixtures', 'baseline-satisfied');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  assert.equal(report.rating, 'none');
+  const drift = report.findings.filter((finding) => finding.kind.startsWith('policy_mesh.baseline_'));
+  assert.deepEqual(drift, [], 'expected no baseline drift findings when everything matches');
+});
+
 test('CLI reports malformed .policymesh-exceptions.json instead of crashing', async () => {
   const repo = join(testDir, 'fixtures', 'exceptions-malformed');
 

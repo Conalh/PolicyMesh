@@ -2,6 +2,7 @@ import { countConfiguredSurfaces, parseRepoPolicies } from './parsers/index.js';
 import { buildEffectiveUnion, buildSurfaceMatrix, runMeshRules } from './mesh/engine.js';
 import { detectMissingLocalScripts } from './mesh/local-scripts.js';
 import { applyExceptions, loadExceptions, signFinding } from './exceptions.js';
+import { evaluateBaseline, loadBaseline } from './baseline.js';
 import type { Finding, MeshRating, MeshReport, Severity } from './types.js';
 
 const severityRank: Record<MeshRating, number> = {
@@ -14,19 +15,35 @@ const severityRank: Record<MeshRating, number> = {
 
 export async function auditRepo(root: string): Promise<MeshReport> {
   const policies = await parseRepoPolicies(root);
-  const [{ exceptions, parseFinding: exceptionsParseFinding }, missingScriptFindings] = await Promise.all([
+  const [
+    { exceptions, parseFinding: exceptionsParseFinding },
+    missingScriptFindings,
+    { baseline, parseFinding: baselineParseFinding }
+  ] = await Promise.all([
     loadExceptions(root),
-    detectMissingLocalScripts(policies, root)
+    detectMissingLocalScripts(policies, root),
+    loadBaseline(root)
   ]);
   const rawFindings = [
     ...(policies.parseFindings ?? []),
     ...runMeshRules(policies),
     ...missingScriptFindings
   ].map(signFinding);
-  const filtered = applyExceptions(rawFindings, exceptions);
-  const findings = exceptionsParseFinding
-    ? [...filtered, signFinding(exceptionsParseFinding)]
-    : filtered;
+  const filteredFindings = applyExceptions(rawFindings, exceptions);
+
+  // Compute the rating BEFORE baseline drift checks so drift comparisons
+  // operate against the post-exception state, matching what reviewers see.
+  const ratingBeforeBaseline = rateFindings(filteredFindings);
+  const baselineDriftFindings = baseline
+    ? evaluateBaseline(baseline, policies, ratingBeforeBaseline)
+    : [];
+
+  const findings = [
+    ...filteredFindings,
+    ...baselineDriftFindings,
+    ...(exceptionsParseFinding ? [signFinding(exceptionsParseFinding)] : []),
+    ...(baselineParseFinding ? [baselineParseFinding] : [])
+  ];
 
   return {
     rating: rateFindings(findings),
