@@ -28,17 +28,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test",
-    "prepublishOnly": "npm run build && npm test"
-  },
-  "files": [
-    "dist/",
-    "action.yml",
-    "README.md",
-    "LICENSE"
-  ],
-  "publishConfig": {
-    "access": "public"
+    "test": "node --test"
   },
   "dependencies": {
     "agent-gov-core": "^0.7.0"

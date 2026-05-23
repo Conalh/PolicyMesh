@@ -78,12 +78,6 @@ PolicyMesh reports `HIGH` policy conflicts and emits GitHub warning annotations 
 ## Local Use
 
 ```powershell
-npx policymesh@latest audit --repo . --format markdown
-```
-
-Or, if you have the repo checked out and want to hack on it:
-
-```powershell
 npm install
 npm run build
 node dist/index.js audit --repo . --format markdown
@@ -91,12 +85,16 @@ node dist/index.js audit --repo . --format markdown
 
 Supported formats: `text` (default, ANSI-coloured in a TTY), `markdown`, `json`, `github` (PR annotations), and `sarif` (SARIF 2.1.0 for the GitHub Security tab and other SAST consumers).
 
-```powershell
-npx policymesh@latest audit --repo . --format sarif > policymesh.sarif
-# Then in a workflow:
-# - uses: github/codeql-action/upload-sarif@v3
-#   with:
-#     sarif_file: policymesh.sarif
+To emit SARIF for the GitHub Security tab, point the bundled CLI at the audit and upload the result via `github/codeql-action/upload-sarif`:
+
+```yaml
+- uses: Conalh/PolicyMesh@v0.4.0
+  with:
+    fail-on: none
+- run: node "$GITHUB_ACTION_PATH/dist/index.js" audit --repo . --format sarif > policymesh.sarif
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: policymesh.sarif
 ```
 
 ### Auto-fix mode
