@@ -130,7 +130,7 @@ jobs:
         with:
           fetch-depth: 0   # required for diff mode to see the PR base ref
 
-      - uses: Conalh/PolicyMesh@v0.2.0
+      - uses: Conalh/PolicyMesh@v0.3.0
         with:
           fail-on: high
           diff: true
@@ -142,7 +142,7 @@ For the simpler full-snapshot mode (audits every finding on every PR, no `fetch-
 
 ```yaml
       - uses: actions/checkout@v6
-      - uses: Conalh/PolicyMesh@v0.2.0
+      - uses: Conalh/PolicyMesh@v0.3.0
         with:
           fail-on: none
 ```
@@ -163,7 +163,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: Conalh/PolicyMesh@v0.2.0
+      - uses: Conalh/PolicyMesh@v0.3.0
         with:
           fail-on: none
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -176,7 +176,7 @@ Without `github-token`, the action runs with the minimal `contents: read` permis
 Set `recursive: true` to audit every sub-project with its own agent config independently. Findings keep their relative file paths so PR annotations land on the right line:
 
 ```yaml
-      - uses: Conalh/PolicyMesh@v0.2.0
+      - uses: Conalh/PolicyMesh@v0.3.0
         with:
           fail-on: none
           recursive: true
