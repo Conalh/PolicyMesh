@@ -22,10 +22,10 @@ test('CLI aligned fixture returns none rating', async () => {
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'none');
-  assert.equal(report.findingCount, 0);
-  assert.equal(report.surfaceCount, 6);
-  assert.ok(report.effectiveUnion.length > 0);
-  assert.ok(report.matrix.length > 0);
+  assert.equal(report.findings.length, 0);
+  assert.equal(report.data.surfaceCount, 6);
+  assert.ok(report.data.effectiveUnion.length > 0);
+  assert.ok(report.data.matrix.length > 0);
 });
 
 test('CLI repository root self-audit returns none rating', async () => {
@@ -37,7 +37,7 @@ test('CLI repository root self-audit returns none rating', async () => {
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'none');
-  assert.equal(report.findingCount, 0);
+  assert.equal(report.findings.length, 0);
 });
 
 test('CLI rejects missing repository path instead of reporting a clean audit', async () => {
@@ -129,10 +129,10 @@ test('CLI consolidates mcp_unpinned across surfaces into one finding with multip
     (finding) => finding.kind === 'policy_mesh.mcp_unpinned'
   );
   assert.equal(unpinned.length, 1, 'expected exactly one consolidated mcp_unpinned finding');
-  assert.ok(unpinned[0].locations.length >= 2, 'expected multiple locations on the consolidated finding');
+  assert.ok(unpinned[0].data.locations.length >= 2, 'expected multiple locations on the consolidated finding');
   // Each location keeps its own surface tag so CI annotations still land
   // on every offending file.
-  const surfaces = new Set(unpinned[0].locations.map((location) => location.surface));
+  const surfaces = new Set(unpinned[0].data.locations.map((location) => location.surface));
   assert.ok(surfaces.size >= 2, 'expected locations to span multiple surfaces');
 });
 
@@ -147,7 +147,7 @@ test('CLI conflicted fixture returns high rating with expected kinds', async () 
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'high');
-  assert.ok(report.findingCount >= 5);
+  assert.ok(report.findings.length >= 5);
 
   const kinds = report.findings.map((finding) => finding.kind);
   assert.ok(kinds.includes('policy_mesh.mcp_command_mismatch'));
@@ -159,11 +159,11 @@ test('CLI conflicted fixture returns high rating with expected kinds', async () 
   assert.ok(kinds.includes('policy_mesh.codex_claude_posture_gap'));
 
   const githubMismatch = report.findings.find(
-    (finding) => finding.kind === 'policy_mesh.mcp_command_mismatch' && finding.subject === 'github'
+    (finding) => finding.kind === 'policy_mesh.mcp_command_mismatch' && finding.data.subject === 'github'
   );
   assert.ok(githubMismatch);
-  assert.ok(githubMismatch.surfaces.includes('codex'));
-  assert.ok(githubMismatch.locations.some((location) => location.file === '.codex/config.toml' && location.surface === 'codex'));
+  assert.ok(githubMismatch.data.surfaces.includes('codex'));
+  assert.ok(githubMismatch.data.locations.some((location) => location.file === '.codex/config.toml' && location.surface === 'codex'));
 });
 
 test('CLI reports malformed agent config instead of crashing', async () => {
@@ -177,11 +177,11 @@ test('CLI reports malformed agent config instead of crashing', async () => {
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'high');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 1);
-  assert.ok(report.effectiveUnion.includes('1 unreadable agent config'));
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 1);
+  assert.ok(report.data.effectiveUnion.includes('1 unreadable agent config'));
   assert.equal(report.findings[0].kind, 'policy_mesh.config_parse_error');
-  assert.equal(report.findings[0].file, '.cursor/mcp.json');
+  assert.equal(report.findings[0].location.file, '.cursor/mcp.json');
   assert.match(report.findings[0].message, /Could not parse Cursor MCP config/);
 });
 
@@ -196,14 +196,14 @@ test('CLI reports malformed Codex config instead of hiding the surface', async (
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'high');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 1);
-  assert.ok(report.effectiveUnion.includes('1 unreadable agent config'));
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 1);
+  assert.ok(report.data.effectiveUnion.includes('1 unreadable agent config'));
   assert.equal(report.findings[0].kind, 'policy_mesh.config_parse_error');
-  assert.equal(report.findings[0].file, '.codex/config.toml');
-  assert.equal(report.findings[0].line, 1);
+  assert.equal(report.findings[0].location.file, '.codex/config.toml');
+  assert.equal(report.findings[0].location.line, 1);
   assert.match(report.findings[0].message, /Could not parse Codex config/);
-  assert.match(report.findings[0].recommendation, /TOML/);
+  assert.match(report.findings[0].data.recommendation, /TOML/);
 });
 
 test('CLI reports Claude MCP grants whose server is not defined in MCP configs', async () => {
@@ -217,16 +217,16 @@ test('CLI reports Claude MCP grants whose server is not defined in MCP configs',
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'medium');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.claude_mcp_grant_missing_server');
   assert.equal(report.findings[0].severity, 'medium');
-  assert.equal(report.findings[0].file, '.claude/settings.json');
-  assert.equal(report.findings[0].line, 4);
-  assert.equal(report.findings[0].subject, 'mcp__github__get_issue');
-  assert.deepEqual(report.findings[0].surfaces, ['claude', 'root_mcp']);
+  assert.equal(report.findings[0].location.file, '.claude/settings.json');
+  assert.equal(report.findings[0].location.line, 4);
+  assert.equal(report.findings[0].data.subject, 'mcp__github__get_issue');
+  assert.deepEqual(report.findings[0].data.surfaces, ['claude', 'root_mcp']);
   assert.match(report.findings[0].message, /github/);
-  assert.match(report.findings[0].recommendation, /MCP config/);
+  assert.match(report.findings[0].data.recommendation, /MCP config/);
 });
 
 test('CLI reports servers missing from configured but empty MCP surfaces', async () => {
@@ -240,12 +240,12 @@ test('CLI reports servers missing from configured but empty MCP surfaces', async
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'low');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.mcp_server_missing');
   assert.equal(report.findings[0].severity, 'low');
-  assert.equal(report.findings[0].subject, 'github');
-  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'cursor_mcp']);
+  assert.equal(report.findings[0].data.subject, 'github');
+  assert.deepEqual(report.findings[0].data.surfaces, ['root_mcp', 'cursor_mcp']);
   assert.match(report.findings[0].message, /defined in Root MCP/);
   assert.match(report.findings[0].message, /missing from Cursor MCP/);
   assert.doesNotMatch(report.findings[0].message, /root_mcp|cursor_mcp/);
@@ -262,12 +262,12 @@ test('CLI reports MCP server enabled-state drift across surfaces', async () => {
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'medium');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.mcp_enabled_mismatch');
   assert.equal(report.findings[0].severity, 'medium');
-  assert.equal(report.findings[0].subject, 'github');
-  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'cursor_mcp']);
+  assert.equal(report.findings[0].data.subject, 'github');
+  assert.deepEqual(report.findings[0].data.surfaces, ['root_mcp', 'cursor_mcp']);
   assert.match(report.findings[0].message, /enabled in Root MCP/);
   assert.match(report.findings[0].message, /disabled in Cursor MCP/);
   assert.doesNotMatch(report.findings[0].message, /root_mcp|cursor_mcp/);
@@ -284,12 +284,12 @@ test('CLI reports MCP server environment drift without leaking values', async ()
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'medium');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.mcp_env_mismatch');
   assert.equal(report.findings[0].severity, 'medium');
-  assert.equal(report.findings[0].subject, 'github');
-  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'vscode_mcp']);
+  assert.equal(report.findings[0].data.subject, 'github');
+  assert.deepEqual(report.findings[0].data.surfaces, ['root_mcp', 'vscode_mcp']);
   assert.match(report.findings[0].message, /environment variable names differ/);
   assert.match(report.findings[0].message, /Root MCP uses GITHUB_TOKEN/);
   assert.match(report.findings[0].message, /VS Code MCP uses GH_TOKEN/);
@@ -309,8 +309,8 @@ test('CLI reports only differing MCP environment value keys without leaking valu
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'medium');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.mcp_env_mismatch');
   assert.match(report.findings[0].message, /environment values differ/);
   assert.match(report.findings[0].message, /GITHUB_TOKEN/);
@@ -330,12 +330,12 @@ test('CLI reports MCP server header drift without leaking values', async () => {
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'medium');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.mcp_header_mismatch');
   assert.equal(report.findings[0].severity, 'medium');
-  assert.equal(report.findings[0].subject, 'analytics');
-  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'vscode_mcp']);
+  assert.equal(report.findings[0].data.subject, 'analytics');
+  assert.deepEqual(report.findings[0].data.surfaces, ['root_mcp', 'vscode_mcp']);
   assert.match(report.findings[0].message, /header names differ/);
   assert.match(report.findings[0].message, /Root MCP uses Authorization/);
   assert.match(report.findings[0].message, /VS Code MCP uses X-API-Key/);
@@ -355,15 +355,15 @@ test('CLI reports Codex MCP server command drift against root MCP config', async
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'high');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.mcp_command_mismatch');
-  assert.equal(report.findings[0].subject, 'github');
-  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'codex']);
-  assert.ok(report.findings[0].locations.some((location) => location.file === '.codex/config.toml' && location.surface === 'codex'));
+  assert.equal(report.findings[0].data.subject, 'github');
+  assert.deepEqual(report.findings[0].data.surfaces, ['root_mcp', 'codex']);
+  assert.ok(report.findings[0].data.locations.some((location) => location.file === '.codex/config.toml' && location.surface === 'codex'));
   // Matrix cells now show short semantic labels: a pinned version
   // for each surface so reviewers can scan a column for drift.
-  assert.ok(report.matrix.some((row) =>
+  assert.ok(report.data.matrix.some((row) =>
     row.capability === 'MCP: github' && row.values.codex === 'v2.0.0' && row.values.root_mcp === 'v1.2.3'
   ));
 });
@@ -387,9 +387,9 @@ test('CLI parses multi-line Codex TOML args without producing false-positive mis
     (finding) => finding.kind === 'policy_mesh.mcp_command_mismatch'
   );
   assert.deepEqual(mismatch, [], 'expected no mcp_command_mismatch findings');
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.data.surfaceCount, 2);
   // Both surfaces should expose a github MCP server with the full pinned command.
-  const githubRow = report.matrix.find((row) => row.capability === 'MCP: github');
+  const githubRow = report.data.matrix.find((row) => row.capability === 'MCP: github');
   assert.ok(githubRow);
   assert.equal(githubRow.values.codex, 'v1.2.3');
   assert.equal(githubRow.values.root_mcp, 'v1.2.3');
@@ -416,7 +416,7 @@ test('CLI does not flag mcp_command_mismatch on neutral -y flag drift between su
     (finding) => finding.kind === 'policy_mesh.mcp_command_mismatch'
   );
   assert.deepEqual(mismatchFindings, [], 'expected no mcp_command_mismatch findings');
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.data.surfaceCount, 2);
 });
 
 test('CLI reports Codeium plugin MCP command drift against root MCP config', async () => {
@@ -430,13 +430,13 @@ test('CLI reports Codeium plugin MCP command drift against root MCP config', asy
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'high');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.mcp_command_mismatch');
-  assert.equal(report.findings[0].subject, 'github');
-  assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'codeium_mcp']);
-  assert.ok(report.findings[0].locations.some((location) => location.file === '.codeium/mcp_config.json' && location.surface === 'codeium_mcp'));
-  assert.ok(report.matrix.some((row) =>
+  assert.equal(report.findings[0].data.subject, 'github');
+  assert.deepEqual(report.findings[0].data.surfaces, ['root_mcp', 'codeium_mcp']);
+  assert.ok(report.findings[0].data.locations.some((location) => location.file === '.codeium/mcp_config.json' && location.surface === 'codeium_mcp'));
+  assert.ok(report.data.matrix.some((row) =>
     row.capability === 'MCP: github' && row.values.codeium_mcp === 'v2.0.0' && row.values.root_mcp === 'v1.2.3'
   ));
 });
@@ -452,8 +452,8 @@ test('CLI reports only differing MCP header value keys without leaking values', 
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'medium');
-  assert.equal(report.findingCount, 1);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.mcp_header_mismatch');
   assert.match(report.findings[0].message, /header values differ/);
   assert.match(report.findings[0].message, /Authorization/);
@@ -473,15 +473,15 @@ test('CLI reports Codex network access alongside unreadable agent surfaces', asy
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'high');
-  assert.equal(report.findingCount, 2);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 2);
+  assert.equal(report.data.surfaceCount, 2);
   assert.equal(report.findings[0].kind, 'policy_mesh.config_parse_error');
-  assert.equal(report.findings[0].file, '.cursor/mcp.json');
+  assert.equal(report.findings[0].location.file, '.cursor/mcp.json');
   assert.equal(report.findings[1].kind, 'policy_mesh.codex_network_without_review');
   assert.equal(report.findings[1].severity, 'medium');
-  assert.equal(report.findings[1].file, '.codex/config.toml');
-  assert.equal(report.findings[1].line, 1);
-  assert.deepEqual(report.findings[1].surfaces, ['codex', 'cursor_mcp']);
+  assert.equal(report.findings[1].location.file, '.codex/config.toml');
+  assert.equal(report.findings[1].location.line, 1);
+  assert.deepEqual(report.findings[1].data.surfaces, ['codex', 'cursor_mcp']);
 });
 
 test('CLI reports hardcoded secrets in MCP env without leaking the value', async () => {
@@ -501,15 +501,15 @@ test('CLI reports hardcoded secrets in MCP env without leaking the value', async
   );
   assert.equal(secretFindings.length, 1);
   assert.equal(secretFindings[0].severity, 'critical');
-  assert.equal(secretFindings[0].subject, 'leaky-openai');
-  assert.deepEqual(secretFindings[0].surfaces, ['root_mcp']);
+  assert.equal(secretFindings[0].data.subject, 'leaky-openai');
+  assert.deepEqual(secretFindings[0].data.surfaces, ['root_mcp']);
   assert.match(secretFindings[0].message, /OpenAI/);
   assert.match(secretFindings[0].message, /OPENAI_API_KEY/);
-  assert.match(secretFindings[0].recommendation, /environment-variable reference/);
+  assert.match(secretFindings[0].data.recommendation, /environment-variable reference/);
 
   // The safe `env:VAR` server must not be flagged.
   assert.equal(
-    secretFindings.some((finding) => finding.subject === 'safe-anthropic'),
+    secretFindings.some((finding) => finding.data.subject === 'safe-anthropic'),
     false
   );
 
@@ -528,8 +528,8 @@ test('CLI active exception in .policymesh-exceptions.json suppresses matching fi
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'none');
-  assert.equal(report.findingCount, 0);
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.findings.length, 0);
+  assert.equal(report.data.surfaceCount, 2);
 });
 
 test('CLI expired exception surfaces finding with downgrade and EXPIRED prefix', async () => {
@@ -543,10 +543,10 @@ test('CLI expired exception surfaces finding with downgrade and EXPIRED prefix',
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'low');
-  assert.equal(report.findingCount, 1);
+  assert.equal(report.findings.length, 1);
   assert.equal(report.findings[0].kind, 'policy_mesh.mcp_enabled_mismatch');
   assert.equal(report.findings[0].severity, 'low');
-  assert.equal(report.findings[0].subject, 'github');
+  assert.equal(report.findings[0].data.subject, 'github');
   assert.match(report.findings[0].message, /^\[EXPIRED WHITELIST\]/);
 });
 
@@ -565,12 +565,12 @@ test('CLI reports MCP servers referencing missing local scripts', async () => {
   );
   assert.equal(scriptFindings.length, 1);
   assert.equal(scriptFindings[0].severity, 'medium');
-  assert.equal(scriptFindings[0].subject, 'broken-tool');
+  assert.equal(scriptFindings[0].data.subject, 'broken-tool');
   assert.match(scriptFindings[0].message, /missing-tool\.js/);
-  assert.deepEqual(scriptFindings[0].surfaces, ['root_mcp']);
+  assert.deepEqual(scriptFindings[0].data.surfaces, ['root_mcp']);
   // Servers using a present file or a package name must NOT be flagged.
-  assert.equal(scriptFindings.some((f) => f.subject === 'real-tool'), false);
-  assert.equal(scriptFindings.some((f) => f.subject === 'package-tool'), false);
+  assert.equal(scriptFindings.some((f) => f.data.subject === 'real-tool'), false);
+  assert.equal(scriptFindings.some((f) => f.data.subject === 'package-tool'), false);
 });
 
 test('CLI reports Aider dangerously-allow-non-git as a high-severity finding', async () => {
@@ -584,18 +584,18 @@ test('CLI reports Aider dangerously-allow-non-git as a high-severity finding', a
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'high');
-  assert.equal(report.surfaceCount, 1);
+  assert.equal(report.data.surfaceCount, 1);
   const aiderFindings = report.findings.filter(
     (finding) => finding.kind === 'policy_mesh.aider_dangerous_allow_non_git'
   );
   assert.equal(aiderFindings.length, 1);
   assert.equal(aiderFindings[0].severity, 'high');
-  assert.equal(aiderFindings[0].file, '.aider.conf.yml');
-  assert.equal(aiderFindings[0].line, 4);
-  assert.deepEqual(aiderFindings[0].surfaces, ['aider']);
+  assert.equal(aiderFindings[0].location.file, '.aider.conf.yml');
+  assert.equal(aiderFindings[0].location.line, 4);
+  assert.deepEqual(aiderFindings[0].data.surfaces, ['aider']);
 
   // Matrix should expose Aider settings without leaking model strings into Codex columns etc.
-  const modelRow = report.matrix.find((row) => row.capability === 'Aider model');
+  const modelRow = report.data.matrix.find((row) => row.capability === 'Aider model');
   assert.ok(modelRow);
   assert.equal(modelRow.values.aider, 'claude-3-5-sonnet');
 });
@@ -611,7 +611,7 @@ test('CLI does not flag Aider when dangerously-allow-non-git is false', async ()
   const report = JSON.parse(stdout);
 
   assert.equal(report.rating, 'none');
-  assert.equal(report.surfaceCount, 1);
+  assert.equal(report.data.surfaceCount, 1);
   assert.equal(
     report.findings.some((f) => f.kind === 'policy_mesh.aider_dangerous_allow_non_git'),
     false
@@ -633,10 +633,10 @@ test('CLI reports MCP servers launching via privileged commands', async () => {
   );
   assert.equal(privilegedFindings.length, 1);
   assert.equal(privilegedFindings[0].severity, 'high');
-  assert.equal(privilegedFindings[0].subject, 'needs-root');
+  assert.equal(privilegedFindings[0].data.subject, 'needs-root');
   assert.match(privilegedFindings[0].message, /"sudo"/);
-  assert.deepEqual(privilegedFindings[0].surfaces, ['root_mcp']);
-  assert.equal(privilegedFindings.some((f) => f.subject === 'user-space'), false);
+  assert.deepEqual(privilegedFindings[0].data.surfaces, ['root_mcp']);
+  assert.equal(privilegedFindings.some((f) => f.data.subject === 'user-space'), false);
 });
 
 test('CLI signature-locked exception re-fires when underlying violation changes', async () => {
@@ -658,7 +658,7 @@ test('CLI signature-locked exception re-fires when underlying violation changes'
   assert.ok(enabledMismatch, 'expected mcp_enabled_mismatch to fire despite the kind+subject match');
   assert.match(enabledMismatch.message, /^\[SIGNATURE MISMATCH\]/);
   // Every finding in the report now carries a signature so users can copy it.
-  assert.match(enabledMismatch.signature, /^[a-f0-9]{16}$/);
+  assert.match(enabledMismatch.data.signature, /^[a-f0-9]{16}$/);
 });
 
 test('CLI emits a signature on every finding so reviewers can lock baselines', async () => {
@@ -671,7 +671,7 @@ test('CLI emits a signature on every finding so reviewers can lock baselines', a
   );
   const report = JSON.parse(stdout);
   for (const finding of report.findings) {
-    assert.match(finding.signature, /^[a-f0-9]{16}$/, `finding ${finding.kind}/${finding.subject} should expose a signature`);
+    assert.match(finding.data.signature, /^[a-f0-9]{16}$/, `finding ${finding.kind}/${finding.data.subject} should expose a signature`);
   }
 });
 
@@ -706,7 +706,7 @@ test('CLI baseline pinnedMcpServers fires version drift finding when actual diff
   const drift = report.findings.find((finding) => finding.kind === 'policy_mesh.baseline_version_drift');
   assert.ok(drift);
   assert.equal(drift.severity, 'high');
-  assert.equal(drift.subject, 'github');
+  assert.equal(drift.data.subject, 'github');
   assert.match(drift.message, /pinned to "2\.0\.0".*baseline expects "1\.2\.3"/);
 });
 
@@ -740,7 +740,7 @@ test('CLI reports malformed .policymesh-exceptions.json instead of crashing', as
   );
   assert.equal(parseFindings.length, 1);
   assert.equal(parseFindings[0].severity, 'medium');
-  assert.equal(parseFindings[0].file, '.policymesh-exceptions.json');
+  assert.equal(parseFindings[0].location.file, '.policymesh-exceptions.json');
   assert.match(parseFindings[0].message, /Could not parse exceptions baseline/);
 });
 
@@ -802,18 +802,18 @@ test('CLI --recursive discovers and audits sibling sub-projects independently', 
     (finding) => finding.kind === 'policy_mesh.mcp_unpinned'
   );
   assert.equal(unpinned.length, 1);
-  assert.match(unpinned[0].file, /apps[\/\\]api[\/\\]\.mcp\.json/);
+  assert.match(unpinned[0].location.file, /apps[\/\\]api[\/\\]\.mcp\.json/);
   assert.equal(report.rating, 'medium');
 
   // Surface matrix rows are tagged with the sub-project path so identical
   // capabilities from different projects do not collide.
-  const githubRows = report.matrix.filter((row) => row.capability.startsWith('MCP: github'));
+  const githubRows = report.data.matrix.filter((row) => row.capability.startsWith('MCP: github'));
   assert.equal(githubRows.length, 2);
   assert.ok(githubRows.some((row) => row.capability.includes('apps/web')));
   assert.ok(githubRows.some((row) => row.capability.includes('apps/api')));
 
   // Each sub-project contributes one MCP surface, so the count sums.
-  assert.equal(report.surfaceCount, 2);
+  assert.equal(report.data.surfaceCount, 2);
 });
 
 test('CLI without --recursive on a monorepo audits only the root', async () => {
@@ -827,8 +827,8 @@ test('CLI without --recursive on a monorepo audits only the root', async () => {
   const report = JSON.parse(stdout);
 
   // No root-level configs in the fixture, so the root audit finds nothing.
-  assert.equal(report.findingCount, 0);
-  assert.equal(report.surfaceCount, 0);
+  assert.equal(report.findings.length, 0);
+  assert.equal(report.data.surfaceCount, 0);
 });
 
 async function copyFixture(srcDir, destDir) {
@@ -891,7 +891,7 @@ test('CLI diff --base-ref audits the named ref via git worktree and diffs agains
     );
     const delta = JSON.parse(stdout);
 
-    assert.ok(delta.findingCount >= 1, 'expected at least one new finding from the working-tree mismatch');
+    assert.ok(delta.findings.length >= 1, 'expected at least one new finding from the working-tree mismatch');
     assert.ok(
       delta.findings.some((finding) => finding.kind === 'policy_mesh.mcp_command_mismatch'),
       'expected an mcp_command_mismatch finding in the delta'
@@ -1008,10 +1008,10 @@ test('CLI diff returns only findings introduced or worsened in head', async () =
     );
     const delta = JSON.parse(stdout);
 
-    assert.equal(delta.findingCount, 7, 'all conflicted findings are new relative to aligned');
+    assert.equal(delta.findings.length, 7, 'all conflicted findings are new relative to aligned');
     assert.equal(delta.rating, 'high');
     // Effective union and matrix still reflect head's full state for context.
-    assert.ok(delta.matrix.length > 0);
+    assert.ok(delta.data.matrix.length > 0);
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
@@ -1043,9 +1043,9 @@ test('CLI diff renders Resolved by this PR section when base findings disappear 
       { cwd: packageRoot }
     );
     const delta = JSON.parse(jsonOut);
-    assert.equal(delta.findingCount, 0);
-    assert.ok(delta.resolvedFindings);
-    assert.ok(delta.resolvedFindings.length >= 5);
+    assert.equal(delta.findings.length, 0);
+    assert.ok(delta.data.resolvedFindings);
+    assert.ok(delta.data.resolvedFindings.length >= 5);
 
     const { stdout: mdOut } = await execFileAsync(
       process.execPath,
@@ -1078,7 +1078,7 @@ test('CLI diff produces an empty delta when base and head match', async () => {
     );
     const delta = JSON.parse(stdout);
 
-    assert.equal(delta.findingCount, 0);
+    assert.equal(delta.findings.length, 0);
     assert.equal(delta.rating, 'none');
   } finally {
     await rm(tmp, { recursive: true, force: true });
@@ -1332,7 +1332,7 @@ test('CLI effective union includes a one-line posture summary on conflicted fixt
   );
   const report = JSON.parse(stdout);
 
-  const posture = report.effectiveUnion.find((line) => line.startsWith('Strictest:') || line.includes('Loosest:'));
+  const posture = report.data.effectiveUnion.find((line) => line.startsWith('Strictest:') || line.includes('Loosest:'));
   assert.ok(posture, 'expected a posture line in the effective union');
   assert.match(posture, /Strictest: Claude/);
   assert.match(posture, /Loosest: Codex/);
@@ -1358,8 +1358,8 @@ test('CLI flags risky instructions in AGENTS.md across categories', async () => 
   // Override-safety is high; broad-write and skip-confirmation are medium.
   const overrideSafety = report.findings.find((finding) => finding.kind === 'policy_mesh.instructions_override_safety');
   assert.equal(overrideSafety.severity, 'high');
-  assert.equal(overrideSafety.file, 'AGENTS.md');
-  assert.deepEqual(overrideSafety.surfaces, ['instructions']);
+  assert.equal(overrideSafety.location.file, 'AGENTS.md');
+  assert.deepEqual(overrideSafety.data.surfaces, ['instructions']);
 });
 
 test('CLI does not flag clean documentation that uses "Always" / "Never" benignly', async () => {
@@ -1375,7 +1375,7 @@ test('CLI does not flag clean documentation that uses "Always" / "Never" benignl
   const instructionFindings = report.findings.filter((finding) => finding.kind.startsWith('policy_mesh.instructions_'));
   assert.deepEqual(instructionFindings, [], 'expected no instruction findings on clean AGENTS.md');
   // The surface itself is still counted as configured because the file exists.
-  assert.equal(report.surfaceCount, 1);
+  assert.equal(report.data.surfaceCount, 1);
 });
 
 test('CLI emits Markdown with matrix and union summary', async () => {

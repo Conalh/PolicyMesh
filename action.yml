@@ -176,8 +176,8 @@ runs:
         # full head report otherwise. surface_count always reflects the
         # full repo so users can see total surface coverage.
         rating="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).rating)" "$rating_source")"
-        finding_count="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).findingCount)" "$rating_source")"
-        surface_count="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).surfaceCount)" "$json_file")"
+        finding_count="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).findings.length)" "$rating_source")"
+        surface_count="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).data.surfaceCount)" "$json_file")"
         echo "rating=$rating" >> "$GITHUB_OUTPUT"
         echo "finding-count=$finding_count" >> "$GITHUB_OUTPUT"
         echo "surface-count=$surface_count" >> "$GITHUB_OUTPUT"

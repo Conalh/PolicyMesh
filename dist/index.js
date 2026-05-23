@@ -4,7 +4,7 @@ import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditRepo } from './audit.js';
 import { auditRecursive } from './recursive.js';
-import { renderReport } from './report.js';
+import { fromCanonicalReport, renderReport } from './report.js';
 import { applyEnabledStateFixes, applyPinFixes, formatFixPlan, formatPinPlan, planEnabledStateFixes, planPinFixes } from './fix.js';
 export { auditRepo } from './audit.js';
 export async function main(argv = process.argv.slice(2)) {
@@ -319,7 +319,10 @@ async function runDiff(argv) {
     let baseReport;
     let headReport;
     try {
-        baseReport = JSON.parse(await readFile(parsed.base, 'utf8'));
+        // Saved reports are canonical envelopes since v0.2.0; rehydrate them
+        // back into MeshReport so diffReports/renderReport (internal-shape APIs)
+        // continue to work unchanged.
+        baseReport = fromCanonicalReport(JSON.parse(await readFile(parsed.base, 'utf8')));
     }
     catch (error) {
         if (isNodeError(error) && error.code === 'ENOENT') {
@@ -330,7 +333,7 @@ async function runDiff(argv) {
         return 2;
     }
     try {
-        headReport = JSON.parse(await readFile(parsed.head, 'utf8'));
+        headReport = fromCanonicalReport(JSON.parse(await readFile(parsed.head, 'utf8')));
     }
     catch (error) {
         if (isNodeError(error) && error.code === 'ENOENT') {
@@ -450,9 +453,9 @@ async function runRender(argv) {
         return 2;
     }
     const { readFile } = await import('node:fs/promises');
-    let report;
+    let parsedJson;
     try {
-        report = JSON.parse(await readFile(parsed.input, 'utf8'));
+        parsedJson = JSON.parse(await readFile(parsed.input, 'utf8'));
     }
     catch (error) {
         if (isNodeError(error) && error.code === 'ENOENT') {
@@ -460,6 +463,16 @@ async function runRender(argv) {
             return 2;
         }
         process.stderr.write(`Could not read report JSON at ${parsed.input}: ${error.message}\n`);
+        return 2;
+    }
+    // `render` accepts only the canonical Report envelope as of v0.2.0; pre-
+    // 0.2.0 MeshReport JSON is rejected with a pointer to the migration.
+    let report;
+    try {
+        report = fromCanonicalReport(parsedJson);
+    }
+    catch (error) {
+        process.stderr.write(`${error.message}\n`);
         return 2;
     }
     process.stdout.write(renderReport(report, parsed.format, {

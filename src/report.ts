@@ -1,13 +1,130 @@
+import {
+  createFinding as createCanonicalFinding,
+  createReport as createCanonicalReport,
+  type Finding as CanonicalFinding,
+  type Report as CanonicalReport,
+} from 'agent-gov-core';
 import { selectConflictRows } from './mesh/engine.js';
-import type { Finding, MeshReport, ReportFormat, SurfaceId } from './types.js';
+import type { Finding, FindingLocation, MatrixRow, MeshRating, MeshReport, ReportFormat, SurfaceId } from './types.js';
 
 interface RenderOptions {
   githubAnnotationPathPrefix?: string;
 }
 
+/**
+ * Project a PolicyMesh-internal {@link MeshReport} into the canonical
+ * agent-gov-core {@link CanonicalReport} envelope. Used at the JSON
+ * serialization boundary so cross-tool meta-reviewers (GovVerdict) ingest
+ * one shape across the whole suite.
+ *
+ * PolicyMesh-specific top-level fields (`surfaceCount`, `effectiveUnion`,
+ * `matrix`, `resolvedFindings`) move under `Report.data`. Per-finding extras
+ * (`subject`, `recommendation`, `surfaces`, `signature`, `locations[]`)
+ * ride under each canonical Finding's `data.*`. Internal markdown / text /
+ * github / sarif renderers continue to consume `MeshReport` directly.
+ */
+export function toCanonicalReport(report: MeshReport): CanonicalReport {
+  const findings: CanonicalFinding[] = report.findings.map((f) =>
+    findingToCanonical(f),
+  );
+  const data: Record<string, unknown> = {
+    surfaceCount: report.surfaceCount,
+    effectiveUnion: report.effectiveUnion,
+    matrix: report.matrix,
+  };
+  if (report.resolvedFindings && report.resolvedFindings.length > 0) {
+    data.resolvedFindings = report.resolvedFindings.map((f) => findingToCanonical(f));
+  }
+  return createCanonicalReport({ tool: 'policy_mesh', findings, data });
+}
+
+function findingToCanonical(f: Finding): CanonicalFinding {
+  const name = f.kind.startsWith('policy_mesh.')
+    ? f.kind.slice('policy_mesh.'.length)
+    : f.kind;
+  const data: Record<string, unknown> = {
+    subject: f.subject,
+    recommendation: f.recommendation,
+    surfaces: f.surfaces,
+  };
+  if (f.signature !== undefined) data.signature = f.signature;
+  if (f.locations && f.locations.length > 0) data.locations = f.locations;
+  // Canonical Finding holds one location. Use the flat file/line — the full
+  // location array survives under data.locations so SARIF + GHA still see them.
+  const location = f.line !== undefined ? { file: f.file, line: f.line } : { file: f.file };
+  // salientKey distinguishes (kind, file, line) collisions across surfaces
+  // — without it, mcp_command_mismatch findings for different subjects on the
+  // same line would collapse under fingerprint dedup.
+  return createCanonicalFinding({
+    tool: 'policy_mesh',
+    name,
+    severity: f.severity,
+    message: f.message,
+    location,
+    data,
+    salientKey: f.subject,
+  });
+}
+
+/**
+ * Inverse of {@link toCanonicalReport}: rehydrate a {@link MeshReport} from
+ * a canonical {@link CanonicalReport} envelope. Used by the `render`
+ * subcommand which reads a saved JSON report and routes it through the
+ * markdown / text / sarif renderers (all of which expect the internal type).
+ *
+ * @throws if the input is not a `policy_mesh` canonical envelope.
+ */
+export function fromCanonicalReport(value: unknown): MeshReport {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Expected canonical Report envelope; got non-object input');
+  }
+  const env = value as Record<string, unknown>;
+  if (env.schemaVersion !== '1.0' || env.tool !== 'policy_mesh') {
+    throw new Error(
+      'Expected canonical agent-gov-core Report envelope with tool="policy_mesh". ' +
+      'Legacy MeshReport input is no longer accepted as of v0.2.0 — re-run `policymesh audit` to regenerate the report.',
+    );
+  }
+  const data = (env.data ?? {}) as Record<string, unknown>;
+  const findings = ((env.findings ?? []) as unknown[]).map(findingFromCanonical);
+  const resolvedRaw = data.resolvedFindings;
+  const resolvedFindings = Array.isArray(resolvedRaw)
+    ? resolvedRaw.map(findingFromCanonical)
+    : undefined;
+  const out: MeshReport = {
+    rating: env.rating as MeshRating,
+    findingCount: findings.length,
+    surfaceCount: typeof data.surfaceCount === 'number' ? data.surfaceCount : 0,
+    findings,
+    effectiveUnion: Array.isArray(data.effectiveUnion) ? (data.effectiveUnion as string[]) : [],
+    matrix: Array.isArray(data.matrix) ? (data.matrix as MatrixRow[]) : [],
+  };
+  if (resolvedFindings) out.resolvedFindings = resolvedFindings;
+  return out;
+}
+
+function findingFromCanonical(value: unknown): Finding {
+  const f = value as Record<string, unknown>;
+  const data = (f.data ?? {}) as Record<string, unknown>;
+  const location = (f.location ?? {}) as Record<string, unknown>;
+  const out: Finding = {
+    kind: f.kind as string,
+    severity: f.severity as Finding['severity'],
+    file: typeof location.file === 'string' ? location.file : '',
+    subject: typeof data.subject === 'string' ? data.subject : '',
+    message: f.message as string,
+    recommendation: typeof data.recommendation === 'string' ? data.recommendation : '',
+    surfaces: Array.isArray(data.surfaces) ? (data.surfaces as SurfaceId[]) : [],
+  };
+  if (typeof location.line === 'number') out.line = location.line;
+  if (typeof data.signature === 'string') out.signature = data.signature;
+  if (Array.isArray(data.locations)) out.locations = data.locations as FindingLocation[];
+  return out;
+}
+
 export function renderReport(report: MeshReport, format: ReportFormat, options: RenderOptions = {}): string {
   if (format === 'json') {
-    return `${JSON.stringify(report, null, 2)}\n`;
+    return `${JSON.stringify(toCanonicalReport(report), null, 2)}\n`;
   }
 
   if (format === 'markdown') {
