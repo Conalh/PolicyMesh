@@ -10,15 +10,15 @@ const execFileAsync = promisify(execFile);
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(testDir, '..');
 
-test('release metadata is prepared for v0.1.18 Action users', async () => {
+test('release metadata is prepared for v0.2.0 Action users', async () => {
   const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
   const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
 
-  assert.equal(packageJson.version, '0.1.18');
-  assert.equal(packageLock.version, '0.1.18');
-  assert.equal(packageLock.packages[''].version, '0.1.18');
-  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.1\.18/);
+  assert.equal(packageJson.version, '0.2.0');
+  assert.equal(packageLock.version, '0.2.0');
+  assert.equal(packageLock.packages[''].version, '0.2.0');
+  assert.match(readme, /uses: Conalh\/PolicyMesh@v0\.2\.0/);
 });
 
 test('package metadata supports OSS discovery', async () => {
@@ -165,7 +165,7 @@ test('issue templates collect detector and team validation feedback', async () =
   assert.match(teamValidation, /Reporting or export need/);
   assert.match(teamValidation, /Team workflow/);
   assert.match(teamValidation, /Team workflow gap/);
-  assert.match(teamPilot, /Conalh\/PolicyMesh@v0\.1\.18/);
+  assert.match(teamPilot, /Conalh\/PolicyMesh@v0\.2\.0/);
   assert.match(teamPilot, /Run across at least two repositories/);
   assert.match(teamPilot, /Finding counts by severity/);
   assert.match(teamPilot, /shared baselines/);

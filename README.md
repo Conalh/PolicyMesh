@@ -128,7 +128,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.1.18
+      - uses: Conalh/PolicyMesh@v0.2.0
         with:
           fail-on: none
 ```
@@ -151,7 +151,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: Conalh/PolicyMesh@v0.1.18
+      - uses: Conalh/PolicyMesh@v0.2.0
         with:
           fail-on: none
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -164,7 +164,7 @@ Without `github-token`, the action runs with the minimal `contents: read` permis
 Set `recursive: true` to audit every sub-project with its own agent config independently. Findings keep their relative file paths so PR annotations land on the right line:
 
 ```yaml
-      - uses: Conalh/PolicyMesh@v0.1.18
+      - uses: Conalh/PolicyMesh@v0.2.0
         with:
           fail-on: none
           recursive: true
@@ -178,7 +178,7 @@ For repos that already have pre-existing findings, the default audit fires on ev
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0     # required so the PR base ref is available
-      - uses: Conalh/PolicyMesh@v0.1.18
+      - uses: Conalh/PolicyMesh@v0.2.0
         with:
           fail-on: high
           diff: true
