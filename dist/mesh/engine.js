@@ -501,6 +501,10 @@ export function buildEffectiveUnion(policies) {
     if (parseFindingCount > 0) {
         union.push(`${parseFindingCount} unreadable agent config${parseFindingCount === 1 ? '' : 's'}`);
     }
+    const posture = describePosture(policies);
+    if (posture) {
+        union.push(posture);
+    }
     if (union.length === 0) {
         union.push('No agent policy surfaces configured');
     }
@@ -512,7 +516,7 @@ export function buildSurfaceMatrix(policies) {
     for (const [name, servers] of byName) {
         const values = {};
         for (const server of servers) {
-            values[server.surfaceId] = truncate(server.command, 48);
+            values[server.surfaceId] = mcpServerCellLabel(server);
         }
         rows.push({ capability: `MCP: ${name}`, values });
     }
@@ -684,6 +688,102 @@ function listOtherAgentSurfaces(policies) {
 }
 function truncate(value, max) {
     return value.length <= max ? value : `${value.slice(0, max - 3)}...`;
+}
+/**
+ * Short, semantic cell label for an MCP server in the surface matrix.
+ * Replaces the previous "first 48 chars of the joined command" with
+ * one of: "disabled", "@latest", "unpinned", "v<version>", or a
+ * truncated fallback. Reviewers can scan a column for disagreement at
+ * a glance instead of having to compare command strings.
+ */
+function mcpServerCellLabel(server) {
+    if (server.enabled === false) {
+        return 'disabled';
+    }
+    if (server.unpinned) {
+        const lowered = server.command.toLowerCase();
+        if (lowered.includes('@latest')) {
+            return '@latest';
+        }
+        return 'unpinned';
+    }
+    const version = extractPinnedVersion(server.command);
+    if (version) {
+        return `v${version}`;
+    }
+    return truncate(server.command, 32);
+}
+function extractPinnedVersion(command) {
+    // Match @x.y.z (semver-shaped) appearing after a package name.
+    // Skips org prefixes like @modelcontextprotocol/ — only the @ followed
+    // by digits-first counts as a version.
+    const match = /@(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)/.exec(command);
+    return match?.[1];
+}
+export function selectConflictRows(matrix) {
+    return matrix.filter((row) => {
+        const values = Object.values(row.values).filter((value) => Boolean(value));
+        if (values.length < 2) {
+            return false;
+        }
+        return new Set(values).size > 1;
+    });
+}
+/**
+ * One-line posture summary: which surface is the strictest signal in
+ * the repo (denies, restrictive sandbox), and which is the loosest
+ * (trusted + network, broad allow without hook). Surfaces only the
+ * single strongest signal of each; if nothing reads as strict or
+ * loose, the line is omitted.
+ */
+export function describePosture(policies) {
+    const strictest = strictestSignal(policies);
+    const loosest = loosestSignal(policies);
+    if (!strictest && !loosest) {
+        return undefined;
+    }
+    const parts = [];
+    if (strictest) {
+        parts.push(`Strictest: ${strictest}`);
+    }
+    if (loosest) {
+        parts.push(`Loosest: ${loosest}`);
+    }
+    return parts.join(' · ');
+}
+function strictestSignal(policies) {
+    const claudeDenies = policies.claude
+        ? [...policies.claude.deny.keys()].filter(isSensitiveDeny).length
+        : 0;
+    if (claudeDenies > 0) {
+        return `Claude (${claudeDenies} sensitive deny rule${claudeDenies === 1 ? '' : 's'})`;
+    }
+    if (policies.codex?.sandbox && codexSandboxRank(policies.codex.sandbox) === 0) {
+        return `Codex (read-only sandbox)`;
+    }
+    return undefined;
+}
+function loosestSignal(policies) {
+    if (policies.codex?.trusted && policies.codex?.networkAccess) {
+        return 'Codex (trusted + network)';
+    }
+    if (policies.aider?.dangerouslyAllowNonGit) {
+        return 'Aider (non-git operation)';
+    }
+    if (policies.codex?.trusted) {
+        return 'Codex (trusted)';
+    }
+    if (policies.codex?.networkAccess) {
+        return 'Codex (network enabled)';
+    }
+    if (policies.claude) {
+        const broadAllows = [...policies.claude.allow.keys()].filter(isBroadAllow);
+        const hasPreToolUse = [...policies.claude.hooks].some((hook) => hook.toLowerCase() === 'pretooluse');
+        if (broadAllows.length > 0 && !hasPreToolUse) {
+            return `Claude (${broadAllows.length} broad allow${broadAllows.length === 1 ? '' : 's'}, no PreToolUse guard)`;
+        }
+    }
+    return undefined;
 }
 function findingsEmpty() {
     return [];

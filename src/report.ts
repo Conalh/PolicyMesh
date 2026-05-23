@@ -1,3 +1,4 @@
+import { selectConflictRows } from './mesh/engine.js';
 import type { Finding, MeshReport, ReportFormat, SurfaceId } from './types.js';
 
 interface RenderOptions {
@@ -30,6 +31,20 @@ function renderMarkdown(report: MeshReport): string {
   lines.push('');
 
   if (report.matrix.length > 0) {
+    const conflictRows = selectConflictRows(report.matrix);
+    if (conflictRows.length > 0) {
+      lines.push('## Surface matrix — conflicts', '');
+      lines.push('Rows where 2+ surfaces disagree. Aligned rows are in the full matrix below.', '');
+      lines.push(`| Capability | ${SURFACE_COLUMNS.map(formatSurface).join(' | ')} |`);
+      lines.push(`| --- | ${SURFACE_COLUMNS.map(() => '---').join(' | ')} |`);
+      for (const row of conflictRows) {
+        const capability = escapeMarkdownTableCell(row.capability);
+        const cells = SURFACE_COLUMNS.map((surface) => escapeMarkdownTableCell(row.values[surface] ?? '-'));
+        lines.push(`| ${capability} | ${cells.join(' | ')} |`);
+      }
+      lines.push('');
+    }
+
     lines.push('## Surface matrix', '');
     lines.push(`| Capability | ${SURFACE_COLUMNS.map(formatSurface).join(' | ')} |`);
     lines.push(`| --- | ${SURFACE_COLUMNS.map(() => '---').join(' | ')} |`);

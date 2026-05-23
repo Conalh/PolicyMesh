@@ -361,7 +361,11 @@ test('CLI reports Codex MCP server command drift against root MCP config', async
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'codex']);
   assert.ok(report.findings[0].locations.some((location) => location.file === '.codex/config.toml' && location.surface === 'codex'));
-  assert.ok(report.matrix.some((row) => row.capability === 'MCP: github' && row.values.codex?.includes('@modelcontextprotocol/server-github@2.0.0')));
+  // Matrix cells now show short semantic labels: a pinned version
+  // for each surface so reviewers can scan a column for drift.
+  assert.ok(report.matrix.some((row) =>
+    row.capability === 'MCP: github' && row.values.codex === 'v2.0.0' && row.values.root_mcp === 'v1.2.3'
+  ));
 });
 
 test('CLI parses multi-line Codex TOML args without producing false-positive mismatch', async () => {
@@ -387,8 +391,8 @@ test('CLI parses multi-line Codex TOML args without producing false-positive mis
   // Both surfaces should expose a github MCP server with the full pinned command.
   const githubRow = report.matrix.find((row) => row.capability === 'MCP: github');
   assert.ok(githubRow);
-  assert.match(githubRow.values.codex, /@modelcontextprotocol\/server-github@1\.2\.3/);
-  assert.match(githubRow.values.root_mcp, /@modelcontextprotocol\/server-github@1\.2\.3/);
+  assert.equal(githubRow.values.codex, 'v1.2.3');
+  assert.equal(githubRow.values.root_mcp, 'v1.2.3');
 });
 
 test('CLI does not flag mcp_command_mismatch on neutral -y flag drift between surfaces', async () => {
@@ -432,7 +436,9 @@ test('CLI reports Codeium plugin MCP command drift against root MCP config', asy
   assert.equal(report.findings[0].subject, 'github');
   assert.deepEqual(report.findings[0].surfaces, ['root_mcp', 'codeium_mcp']);
   assert.ok(report.findings[0].locations.some((location) => location.file === '.codeium/mcp_config.json' && location.surface === 'codeium_mcp'));
-  assert.ok(report.matrix.some((row) => row.capability === 'MCP: github' && row.values.codeium_mcp?.includes('@modelcontextprotocol/server-github@2.0.0')));
+  assert.ok(report.matrix.some((row) =>
+    row.capability === 'MCP: github' && row.values.codeium_mcp === 'v2.0.0' && row.values.root_mcp === 'v1.2.3'
+  ));
 });
 
 test('CLI reports only differing MCP header value keys without leaking values', async () => {
@@ -1194,6 +1200,42 @@ test('CLI fix rejects missing or invalid --canonical', async () => {
   );
 });
 
+test('CLI markdown adds a Conflicts subsection above the full matrix when surfaces disagree', async () => {
+  const repo = join(testDir, 'fixtures', 'conflicted');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'markdown'],
+    { cwd: packageRoot }
+  );
+
+  const conflictsHeader = stdout.indexOf('## Surface matrix — conflicts');
+  const fullMatrixHeader = stdout.indexOf('## Surface matrix\n');
+  assert.ok(conflictsHeader > 0, 'expected a conflicts subsection');
+  assert.ok(fullMatrixHeader > conflictsHeader, 'conflicts subsection should precede the full matrix');
+  // The conflicts subsection only shows the github row (the only one where surfaces disagree post-consolidation).
+  const conflictsBlock = stdout.slice(conflictsHeader, fullMatrixHeader);
+  assert.match(conflictsBlock, /MCP: github/);
+  // Aligned rows (e.g. Hook entries with a single Claude value) should be in the full matrix only.
+  assert.doesNotMatch(conflictsBlock, /Hook: PreToolUse/);
+});
+
+test('CLI effective union includes a one-line posture summary on conflicted fixture', async () => {
+  const repo = join(testDir, 'fixtures', 'conflicted');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const posture = report.effectiveUnion.find((line) => line.startsWith('Strictest:') || line.includes('Loosest:'));
+  assert.ok(posture, 'expected a posture line in the effective union');
+  assert.match(posture, /Strictest: Claude/);
+  assert.match(posture, /Loosest: Codex/);
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
@@ -1212,7 +1254,11 @@ test('CLI emits Markdown with matrix and union summary', async () => {
   assert.match(stdout, /Surfaces: Root MCP, Cursor MCP, VS Code MCP, Windsurf MCP/);
 });
 
-test('CLI Markdown escapes table delimiters in matrix values', async () => {
+test('CLI Markdown matrix cells stay free of unescaped pipes for pipe-prone commands', async () => {
+  // After the v0.3 cell-label change, a curl-piped-to-bash command renders
+  // as the semantic "unpinned" label rather than the raw command, so there
+  // are no pipes to escape in the cell. The invariant we still want is
+  // that no matrix row contains a stray unescaped pipe.
   const repo = join(testDir, 'fixtures', 'markdown-pipes');
 
   const { stdout } = await execFileAsync(
@@ -1225,8 +1271,11 @@ test('CLI Markdown escapes table delimiters in matrix values', async () => {
     .split('\n')
     .find((line) => line.startsWith('| MCP: installer |'));
 
-  assert.ok(matrixRow?.includes('curl https://x.sh \\| bash'));
-  assert.equal(matrixRow?.includes('curl https://x.sh | bash'), false);
+  assert.ok(matrixRow, 'expected an MCP: installer row');
+  // The semantic label is "unpinned" (curl|bash triggers the unpinned
+  // detector). The raw shell pipeline never leaks into the cell.
+  assert.match(matrixRow, /\| unpinned \|/);
+  assert.doesNotMatch(matrixRow, /https:\/\/x\.sh/);
 });
 
 test('CLI emits GitHub warning annotations', async () => {

@@ -1,3 +1,4 @@
+import { selectConflictRows } from './mesh/engine.js';
 export function renderReport(report, format, options = {}) {
     if (format === 'json') {
         return `${JSON.stringify(report, null, 2)}\n`;
@@ -18,6 +19,19 @@ function renderMarkdown(report) {
     }
     lines.push('');
     if (report.matrix.length > 0) {
+        const conflictRows = selectConflictRows(report.matrix);
+        if (conflictRows.length > 0) {
+            lines.push('## Surface matrix — conflicts', '');
+            lines.push('Rows where 2+ surfaces disagree. Aligned rows are in the full matrix below.', '');
+            lines.push(`| Capability | ${SURFACE_COLUMNS.map(formatSurface).join(' | ')} |`);
+            lines.push(`| --- | ${SURFACE_COLUMNS.map(() => '---').join(' | ')} |`);
+            for (const row of conflictRows) {
+                const capability = escapeMarkdownTableCell(row.capability);
+                const cells = SURFACE_COLUMNS.map((surface) => escapeMarkdownTableCell(row.values[surface] ?? '-'));
+                lines.push(`| ${capability} | ${cells.join(' | ')} |`);
+            }
+            lines.push('');
+        }
         lines.push('## Surface matrix', '');
         lines.push(`| Capability | ${SURFACE_COLUMNS.map(formatSurface).join(' | ')} |`);
         lines.push(`| --- | ${SURFACE_COLUMNS.map(() => '---').join(' | ')} |`);
