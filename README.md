@@ -1,152 +1,23 @@
 # PolicyMesh
 
-[![CI](https://github.com/Conalh/PolicyMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Conalh/PolicyMesh/actions/workflows/ci.yml)
-[![PolicyMesh](https://github.com/Conalh/PolicyMesh/actions/workflows/policymesh.yml/badge.svg)](https://github.com/Conalh/PolicyMesh/actions/workflows/policymesh.yml)
-[![Release](https://img.shields.io/github/v/release/Conalh/PolicyMesh)](https://github.com/Conalh/PolicyMesh/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Language: TypeScript](https://img.shields.io/badge/language-TypeScript-3178c6.svg)](https://www.typescriptlang.org/)
+[![Local-only](https://img.shields.io/badge/local--only-uploads%20nothing-2ea44f.svg)](#how-it-works)
+[![Release](https://img.shields.io/github/v/release/Conalh/PolicyMesh)](https://github.com/Conalh/PolicyMesh/releases)
 
-Cross-surface AI agent policy consistency review.
+**Audits an AI-agent repo for contradictory configuration across MCP, Claude, Cursor, VS Code, Windsurf, Codex, and Aider — so one surface can't quietly override the rules another surface enforces.**
 
-PolicyMesh is a free OSS CLI and GitHub Action that audits a repository for contradictory or inconsistent AI-agent configuration across surfaces.
+## The problem
 
-- `.mcp.json`
-- `.cursor/mcp.json`
-- `.vscode/mcp.json`
-- `.codeium/mcp_config.json`
-- `.codeium/windsurf/mcp_config.json`
-- Codex MCP tables in `.codex/config.toml`
-- `.claude/settings.json`
-- `.codex/config.toml`
-- `.aider.conf.yml`
-- Instruction surfaces: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*.md`, `.github/copilot-instructions.md`
-- Surface matrix, effective capability union, and conflict findings
-- Terminal, Markdown, JSON, and line-level GitHub annotation output
-- GitHub Action step summaries and PR-visible warnings
+Agent configuration is scattered. `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `.claude/settings.json`, `.codex/config.toml` and friends each describe what the agent is allowed to do, and they routinely disagree — same MCP server with different launch commands, broad Claude allow rules with a narrow deny that doesn't cover them, Codex network access enabled next to a workspace-write sandbox. Reviewers see one file at a time in a PR and miss the cross-surface contradiction. PolicyMesh reads every surface in the checked-out repo and reports where they don't line up.
 
-It is intentionally not a hosted scanner. The Action reads the checked-out repository, uploads nothing by default, and starts advisory with `fail-on: none`.
+## Quickstart
 
-**ScopeTrail catches permission drift in PRs. PolicyMesh catches contradictory agent policies in the repo.**
-
-## Part of an AI-agent governance suite
-
-Five tools mapping orthogonal failure modes of AI-agent deployment:
-
-- **[ScopeTrail](https://github.com/Conalh/ScopeTrail)** — config drift over time (PR-level).
-- **PolicyMesh** *(this repo)* — policy contradictions across agent surfaces.
-- **[CapabilityEcho](https://github.com/Conalh/CapabilityEcho)** — capability drift via code, not config.
-- **[TaskBound](https://github.com/Conalh/TaskBound)** — scope creep after the agent runs.
-- **[SessionTrail](https://github.com/Conalh/SessionTrail)** — runtime behavior review across agent session transcripts.
-
-[docs/workflows/agent-governance.yml](docs/workflows/agent-governance.yml) is a drop-in workflow template that runs ScopeTrail + PolicyMesh + CapabilityEcho together in one job per PR.
-
-ScopeTrail, PolicyMesh, and CapabilityEcho are preventive (static analysis of config and code). SessionTrail is runtime (in-session transcript review). TaskBound is detective (stated task vs. actual diff).
-
-Plus, sitting alongside the five detectors:
-
-- **[GovVerdict](https://github.com/Conalh/GovVerdict)** — meta-reviewer that merges JSON reports from the five tools above into one PR verdict.
-- **[agent-gov-core](https://github.com/Conalh/agent-gov-core)** — shared `Finding` schema, `mergeFindings`, and parsers all six tools consume.
-- **[agent-gov-demo](https://github.com/Conalh/agent-gov-demo)** — demo sandbox; [PR #1](https://github.com/Conalh/agent-gov-demo/pull/1) trips all five detectors at once.
-
-## Demo
-
-Original demo PR: [Demo: cross-surface agent policy conflicts](https://github.com/Conalh/PolicyMesh/pull/1)
-
-The original PR intentionally adds:
-
-- The same `github` MCP server with different launch commands in `.mcp.json` and `.cursor/mcp.json`.
-- An unpinned `@latest` MCP package in Cursor config.
-- Broad Claude allow rules with a narrow `.env` deny and no `PreToolUse` hook.
-- Codex network access and trusted project settings alongside the risky MCP setup.
-
-PolicyMesh reports `HIGH` policy conflicts and emits GitHub warning annotations on those conflicting config lines.
-
-The default branch does not keep intentionally conflicted root configs checked in. The original PR preserves the PR-visible annotation proof, and the fixture below keeps the fuller current scenario reproducible locally without making every future pull request noisy.
-
-Run PolicyMesh locally against the conflicted fixture:
-
-```powershell
-npm install
-npm run build
-node dist/index.js audit --repo test/fixtures/conflicted --format markdown
-```
-
-The local fixture extends that proof with:
-
-- The same `github` MCP server with different launch commands in `.mcp.json` and `.cursor/mcp.json`.
-- VS Code and Windsurf MCP configs participating in the same cross-surface mismatch.
-- A Codex MCP table in `.codex/config.toml` participating in the same cross-surface mismatch.
-- An unpinned `@latest` MCP package in Cursor config.
-- Broad Claude allow rules with a narrow `.env` deny and no `PreToolUse` hook.
-- Codex network access and trusted project settings alongside the risky MCP setup.
-
-PolicyMesh reports `HIGH` policy conflicts and emits GitHub warning annotations on the conflicting config lines.
-
-## Local Use
-
-```powershell
-npm install
-npm run build
-node dist/index.js audit --repo . --format markdown
-```
-
-Supported formats: `text` (default, ANSI-coloured in a TTY), `markdown`, `json`, `github` (PR annotations), and `sarif` (SARIF 2.1.0 for the GitHub Security tab and other SAST consumers).
-
-To emit SARIF for the GitHub Security tab, point the bundled CLI at the audit and upload the result via `github/codeql-action/upload-sarif`:
-
-```yaml
-- uses: Conalh/PolicyMesh@v0.5.0
-  with:
-    fail-on: none
-- run: node "$GITHUB_ACTION_PATH/dist/index.js" audit --repo . --format sarif > policymesh.sarif
-- uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: policymesh.sarif
-```
-
-### Auto-fix mode
-
-PolicyMesh ships a narrow `fix` subcommand that aligns enabled/disabled state across MCP surfaces to a canonical source of truth:
-
-```powershell
-node dist/index.js fix --repo . --canonical root_mcp           # dry-run
-node dist/index.js fix --repo . --canonical root_mcp --write   # apply
-```
-
-The `--canonical` flag is required because the engine cannot guess which surface holds the intended policy. v1 only handles `mcp_enabled_mismatch` and only edits JSON MCP surfaces (Codex TOML is out of scope). `--write` performs line-targeted in-place edits that preserve comments, trailing commas, and original indentation — only the boolean token on the existing `enabled`/`disabled` line changes.
-
-#### `fix pin`
-
-For command/args drift across MCP surfaces:
-
-```powershell
-node dist/index.js fix pin --repo . --canonical root_mcp           # dry-run
-node dist/index.js fix pin --repo . --canonical root_mcp --write   # apply
-```
-
-`fix pin` rewrites the `command` and `args` fields of MCP server entries on non-canonical surfaces to match the canonical surface — the same line-targeted JSONC editor preserves comments and indentation around the rewritten value. This is more aggressive than enabled-state alignment because it touches the actual exec invocation; the dry-run output starts with an explicit warning, and v1 deliberately skips multi-line `args` arrays and insertion paths so the only thing that ever changes is a value already present on a single line.
-
-### Monorepos
-
-Pass `--recursive` (or `-r`) to discover sub-projects with their own agent configs (e.g. `apps/web/.mcp.json`, `apps/api/.codex/config.toml`) and audit each independently:
-
-```powershell
-node dist/index.js audit --repo . --recursive --format markdown
-```
-
-PolicyMesh walks the tree (skipping `node_modules`, `.git`, `dist`, common build outputs, etc.), runs the standard audit per detected project, and merges the findings. Cross-surface rules fire **within** a project, not across projects — an MCP server named `github` defined the same way in two unrelated sub-projects is not a mismatch.
-
-Each project's findings keep their relative file paths (`apps/api/.mcp.json:5`) so CI annotations point to the right line, and the surface matrix tags every row with its sub-project for easy scanning.
-
-## GitHub Action
-
-Add this workflow to review agent policy consistency on pull requests:
+### As a GitHub Action (most common)
 
 ```yaml
 name: PolicyMesh
-
-on:
-  pull_request:
-
+on: pull_request
 permissions:
   contents: read
 
@@ -156,194 +27,146 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0   # required for diff mode to see the PR base ref
-
+          fetch-depth: 0     # required for diff mode
       - uses: Conalh/PolicyMesh@v0.5.0
         with:
           fail-on: high
-          diff: true
+          diff: true         # gate only on findings this PR introduces or worsens
 ```
 
-**PR delta mode (`diff: true`) is the recommended default**: PolicyMesh audits the PR base ref in a temporary worktree, audits HEAD, and emits PR annotations only for findings that this PR **introduces or worsens**. The `rating` / `finding-count` outputs and `fail-on` threshold gate on the delta, so a PR that doesn't introduce new conflicts passes even when the repo has pre-existing findings. The step summary still shows the full head report for context. Findings whose severity rose in head are marked `[WORSENED from <severity>]` in the message; findings present in base but absent in head are surfaced as a `Resolved by this PR` section — green-check signal alongside the warnings.
+Writes a Markdown report to the Actions step summary and emits PR-visible `::warning` annotations on the exact conflicting config lines.
 
-For the simpler full-snapshot mode (audits every finding on every PR, no `fetch-depth: 0` required):
+### Local CLI
 
-```yaml
-      - uses: actions/checkout@v6
-      - uses: Conalh/PolicyMesh@v0.5.0
-        with:
-          fail-on: none
-```
-
-The action runs the bundled CLI from the published tag and uploads nothing by default. It writes a Markdown report to the GitHub Actions step summary and emits PR-visible warning annotations.
-
-### Optional: sticky PR comment
-
-Pass `github-token: ${{ secrets.GITHUB_TOKEN }}` to have PolicyMesh post the Markdown report as a single PR comment that updates in place across pushes (rather than spamming a new comment per run):
-
-```yaml
-permissions:
-  contents: read
-  pull-requests: write   # required only when using github-token
-
-jobs:
-  policymesh:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: Conalh/PolicyMesh@v0.5.0
-        with:
-          fail-on: none
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-```
-
-Without `github-token`, the action runs with the minimal `contents: read` permission — step summary and warning annotations only.
-
-### Optional: monorepo mode
-
-Set `recursive: true` to audit every sub-project with its own agent config independently. Findings keep their relative file paths so PR annotations land on the right line:
-
-```yaml
-      - uses: Conalh/PolicyMesh@v0.5.0
-        with:
-          fail-on: none
-          recursive: true
-```
-
-### Local diff: working tree vs a git ref
-
-```powershell
-node dist/index.js diff --base-ref main --repo .
-```
-
-`policymesh diff --base-ref <ref>` checks out the named ref into a temporary git worktree, audits it, audits the current working tree, and prints the delta — same engine the Action uses. Use this to see what your in-progress changes would surface on a PR before you push.
-
-If you'd rather compose the primitives yourself:
-
-```powershell
-node dist/index.js audit --repo /path/to/base --format json > base.json
-node dist/index.js audit --repo /path/to/head --format json > head.json
-node dist/index.js diff --base-report base.json --head-report head.json --format github
-```
-Missing-server findings emit annotations on configured surfaces that are missing MCP servers, not only on the surface where the server is defined.
-For subdirectory audits using the `repo` input, GitHub annotation file paths are prefixed back to the workflow workspace so warnings point at the checked-out files.
-
-Start with `fail-on: none` so PolicyMesh is advisory while you tune policy. Raise it to `high` or `critical` once the findings are trusted.
-
-Action outputs:
-
-- `rating`: `none`, `low`, `medium`, `high`, or `critical`
-- `finding-count`: total findings in the audit
-- `surface-count`: number of configured agent policy surfaces found
-
-## Current Findings
-
-PolicyMesh v0 detects:
-
-- MCP server command mismatches across MCP config files.
-- MCP servers present in one MCP config but missing from another.
-- MCP servers missing from configured MCP surfaces with empty server maps.
-- MCP server enabled/disabled drift across surfaces.
-- MCP server environment drift across surfaces without reporting secret values.
-- MCP remote header drift across surfaces without reporting secret values.
-- Codeium MCP servers from `.codeium/mcp_config.json` and Windsurf MCP servers from `.codeium/windsurf/mcp_config.json` in the same MCP mismatch, missing-server, enabled-state, env, and header checks.
-- Codex MCP servers from `.codex/config.toml` in the same MCP mismatch, missing-server, enabled-state, env, and header checks.
-- Unpinned MCP launch commands such as `@latest`.
-- Claude broad allow rules overlapping with specific deny rules.
-- Broad Claude allow rules without a `PreToolUse` guard hook.
-- Claude MCP grants for servers missing from MCP configs.
-- Codex network access enabled alongside other configured or unreadable agent surfaces.
-- Codex trusted project settings combined with risky MCP configuration.
-- Codex sandbox posture gaps relative to Claude deny rules.
-- Hardcoded API credentials embedded in MCP launch commands, environment variable values, or headers (CRITICAL). The finding names the provider and the field it appeared in; the literal credential is never echoed in any output format.
-- MCP servers referencing local scripts (relative paths ending in `.js`, `.py`, `.sh`, etc.) that do not exist in the checked-out repository.
-- MCP servers launching via elevation utilities (`sudo`, `doas`, `pkexec`, `runas`, `gsudo`, etc.). Agents should run in user space, not as root.
-- Aider configured with `dangerously-allow-non-git: true`, bypassing the git-tracked audit trail that makes edits reviewable.
-- Risky imperatives in instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*.md`, `.github/copilot-instructions.md`): "ignore deny rules" (HIGH), "without asking" (MEDIUM), "edit any file" (MEDIUM), "auto-commit / push automatically" (LOW). Detection is narrow regex over imperative + risky-scope phrasing — phrases like "Always use TypeScript" and "Never use var" do not trip.
-- Malformed JSON and Codex TOML agent config files that would otherwise hide a policy surface.
-
-PolicyMesh parses VS Code and Cursor configs as JSONC — `//` line comments, `/* */` block comments, and trailing commas are all accepted, so the audit doesn't false-fail on real-world editor output. `isBroadAllow` distinguishes scoped grants like `WebFetch(domain:example.com)` and `mcp__github__get_issue` from bare or wildcarded grants; narrow grants are not flagged.
-
-### Baseline exceptions
-
-Drop a `.policymesh-exceptions.json` at the repo root to suppress known and documented findings without disabling rules globally:
-
-```json
-{
-  "exceptions": [
-    {
-      "kind": "policy_mesh.mcp_enabled_mismatch",
-      "subject": "my-custom-tool",
-      "reason": "Intentionally disabled on Cursor while we evaluate a regression",
-      "expiry": "2026-12-31"
-    }
-  ]
-}
-```
-
-Matching findings (by `kind` + `subject`) are silently suppressed. Once `expiry` passes, the finding is surfaced again — downgraded to `low` and prefixed `[EXPIRED WHITELIST]` — so stale baselines stay visible instead of rotting silently.
-
-For higher-assurance baselines, add a `signature` from the finding's audit output:
-
-```json
-{
-  "exceptions": [
-    {
-      "kind": "policy_mesh.mcp_enabled_mismatch",
-      "subject": "github",
-      "signature": "a1b2c3d4e5f6a7b8",
-      "reason": "Approved by @security; locked to the reviewed violation."
-    }
-  ]
-}
-```
-
-Every finding in the audit JSON now carries a `signature` field — a 16-char hash over the subject, file, and normalized message. Copy that value into the exception. If the underlying violation later changes (e.g. someone rewrites the MCP command to run a different binary), the signature stops matching and the finding re-fires with a `[SIGNATURE MISMATCH]` prefix so it gets re-reviewed rather than silently riding a stale approval. Exceptions without a `signature` keep the v0.2.0 kind+subject-only behaviour.
-
-### Defined-good baseline
-
-`.policymesh-baseline.json` is the positive-space counterpart to exceptions: it encodes the state the team intends to hold. Drift from that state fires a HIGH-severity finding even when no individual rule fires.
-
-```json
-{
-  "expectedRating": "none",
-  "pinnedMcpServers": {
-    "github": "1.2.3",
-    "linear": "0.9.0"
-  }
-}
-```
-
-- `expectedRating` — the maximum tolerable rating. Any rating above it produces `policy_mesh.baseline_rating_drift`.
-- `pinnedMcpServers` — exact versions that must hold across every surface where the server is configured. Drift produces `policy_mesh.baseline_version_drift` per offending surface.
-
-Exceptions suppress noise the team has accepted; baseline encodes intent the team requires. Use both — they're orthogonal.
-
-## Complements ScopeTrail
-
-Use both tools together:
-
-- **[ScopeTrail](https://github.com/Conalh/ScopeTrail)** — did agent permissions **change** in this PR?
-- **PolicyMesh** — do agent surfaces **agree** in this repo right now?
-
-## Feedback Wanted
-
-PolicyMesh is intentionally small right now. If a warning is noisy, open a
-[false-positive report](https://github.com/Conalh/PolicyMesh/issues/new?template=false-positive.yml).
-If your team uses another agent config surface, open a
-[missing-surface request](https://github.com/Conalh/PolicyMesh/issues/new?template=missing-surface.yml).
-If you're trying PolicyMesh across multiple repositories or want shared baselines,
-exception ownership, or cross-repo reports, the [team pilot guide](docs/TEAM_PILOT.md)
-walks through a concrete multi-repo trial path and the
-[team feedback form](https://github.com/Conalh/PolicyMesh/issues/new?template=team-validation.yml)
-collects results.
-
-## Development
-
-```powershell
+```bash
+git clone https://github.com/Conalh/PolicyMesh
+cd PolicyMesh
 npm install
 npm run build
-npm test
+
+# Audit the bundled conflicted fixture
+node dist/index.js audit --repo test/fixtures/conflicted --format markdown
+
+# Or audit a real repo
+node dist/index.js audit --repo /path/to/your/repo --format text
 ```
 
-Shared parsing, locators, and the Finding schema live in [agent-gov-core](https://github.com/Conalh/agent-gov-core) — see its [CONTRIBUTING.md](https://github.com/Conalh/agent-gov-core/blob/main/CONTRIBUTING.md) before touching that library.
+## Example output
+
+Real output from `test/fixtures/conflicted`, `--format text`:
+
+```
+PolicyMesh agent policy review: HIGH
+
+Effective capability union:
+- 1 MCP server configured
+- 3 unpinned MCP packages
+- bash wildcards allowed (Claude)
+- broad read paths allowed (Claude)
+- network enabled (Codex)
+- Codex project trusted
+- Codex sandbox: workspace-write
+- Strictest: Claude (1 sensitive deny rule) · Loosest: Codex (trusted + network)
+
+[HIGH]   github: MCP server "github" has different launch commands across surfaces:
+         "npx -y @modelcontextprotocol/server-github@1.2.3" vs "@latest" vs "@2.0.0".
+         Surfaces: Root MCP, Cursor MCP, VS Code MCP, Windsurf MCP, Codex.
+[MEDIUM] github: unpinned command across 3 surfaces (@latest). Surfaces: Cursor, VS Code, Windsurf.
+[MEDIUM] Read(.env): Claude denies Read(.env) but has broad allow rules Bash(npm *), Read(~/**).
+[MEDIUM] network_access: Codex network access enabled alongside other configured surfaces.
+[HIGH]   github: Codex project trusted while MCP servers are unpinned and inconsistent.
+```
+
+`--format json` emits the canonical [agent-gov-core](https://github.com/Conalh/agent-gov-core) `Report` envelope — the same shape every tool in the suite emits, so [GovVerdict](https://github.com/Conalh/GovVerdict) can merge them:
+
+```json
+{
+  "schemaVersion": "1.0",
+  "tool": "policy_mesh",
+  "rating": "high",
+  "findings": [
+    {
+      "tool": "policy_mesh",
+      "kind": "policy_mesh.mcp_command_mismatch",
+      "severity": "high",
+      "message": "MCP server \"github\" has different launch commands across surfaces…",
+      "location": { "file": ".mcp.json", "line": 3 },
+      "salientKey": "github",
+      "data": {
+        "subject": "github",
+        "recommendation": "Use the same pinned MCP server definition in every MCP config file.",
+        "surfaces": ["root_mcp", "cursor_mcp", "vscode_mcp", "windsurf_mcp", "codex"],
+        "signature": "d0bb4972fd9e855d"
+      },
+      "fingerprint": "ce65620cb8140af3"
+    }
+  ]
+}
+```
+
+`--format sarif` is also supported for the GitHub Security tab and other SAST consumers.
+
+<!-- TODO: add screenshot or asciinema GIF of real output here -->
+
+## How it works
+
+- Runs against the **checked-out repo** — no upload, no hosted scanner, no telemetry. The GitHub Action writes a Markdown report to the step summary and emits PR-visible annotations; pass `github-token` to additionally post a sticky PR comment that updates in place.
+- One audit pass renders five output formats: `text` for terminals, `markdown` for step summaries and PR comments, `json` for piping to GovVerdict, `github` for `::warning` annotations on the exact conflicting line, `sarif` for the GitHub Security tab.
+- Detectors group by canonical identity (e.g. MCP command normalization ignores neutral flag reordering / `-y` vs `--yes` / `.cmd` vs `.exe`) and fire only when two or more surfaces actually disagree.
+- **Diff mode** (`diff: true`) audits the PR base in a temporary worktree, audits HEAD, and gates only on **new or worsened** findings — so a PR doesn't fail on pre-existing conflicts. Findings resolved by the PR are surfaced separately as green-check signal.
+- **`fix` / `fix pin`** can auto-align MCP enabled-state or `command` / `args` drift to a canonical surface you nominate. Always dry-run first; `--write` does line-targeted edits that preserve comments and indentation.
+- **Baselines.** `.policymesh-exceptions.json` suppresses known-and-documented findings (optionally locked to a content signature so the suppression breaks if the violation later changes). `.policymesh-baseline.json` encodes the positive state the team requires and fires HIGH on drift.
+
+## Options
+
+### CLI
+
+| Command | What it does |
+| --- | --- |
+| `policymesh audit --repo <path>` | Full repo audit. `--format text\|markdown\|json\|github\|sarif`. `--recursive` for monorepos. |
+| `policymesh diff --base-ref <git-ref>` | Audit a base ref in a temp worktree, audit working tree, print the delta. |
+| `policymesh diff --base-report a.json --head-report b.json` | Diff two saved JSON audits. |
+| `policymesh fix --canonical <surface> [--write]` | Align MCP enabled / disabled state to a canonical surface. |
+| `policymesh fix pin --canonical <surface> [--write]` | Align MCP `command` / `args` to a canonical surface. |
+| `policymesh render --input <json> --format <fmt>` | Re-render a saved audit in another format. |
+
+`<surface>` is one of: `root_mcp`, `cursor_mcp`, `vscode_mcp`, `codeium_mcp`, `windsurf_mcp`, `claude`, `codex`, `aider`, `instructions`.
+
+### GitHub Action inputs
+
+| Input | Default | Purpose |
+| --- | --- | --- |
+| `repo` | `$GITHUB_WORKSPACE` | Checkout path to inspect. |
+| `fail-on` | `none` | Severity that fails the step: `none`, `low`, `medium`, `high`, `critical`. Start advisory, raise later. |
+| `diff` | `false` | On `pull_request`, gate only on findings introduced or worsened by this PR. |
+| `recursive` | `false` | Monorepo mode — audit every sub-project with its own agent config independently. |
+| `github-token` | _(unset)_ | Optional `GITHUB_TOKEN` with `pull-requests: write` to post a sticky PR comment that updates in place. |
+
+### GitHub Action outputs
+
+`rating` (`none`/`low`/`medium`/`high`/`critical`), `finding-count`, `surface-count`.
+
+## Detection coverage
+
+PolicyMesh v0.5 detects MCP command mismatches, missing-server gaps, enabled-state drift, env / header drift (without echoing secret values), unpinned `@latest` packages, hardcoded API credentials in MCP launch lines, MCP servers launched via elevation utilities (`sudo`, `pkexec`, `runas`…), broken local script paths, Claude broad-allow vs narrow-deny contradictions, Claude broad allows without a `PreToolUse` hook, Claude MCP grants for servers that aren't configured, Codex network-access + trusted-project + risky-MCP combinations, Codex sandbox gaps relative to Claude denies, Aider `dangerously-allow-non-git`, and risky imperatives in `AGENTS.md` / `CLAUDE.md` / `.cursor/rules/*.md` / `.github/copilot-instructions.md` (e.g. "ignore deny rules", "edit any file", "auto-commit"). VS Code and Cursor configs are parsed as JSONC (comments and trailing commas accepted).
+
+## Part of the agent-gov suite
+
+Local-only OSS tools that review AI-agent PRs and coding sessions for config drift, policy mismatches, and scope creep. Each tool covers an orthogonal failure mode; they share a canonical `Finding` schema and can be merged into a single verdict.
+
+| Repo | What it catches |
+| --- | --- |
+| **[ScopeTrail](https://github.com/Conalh/ScopeTrail)** | Diffs agent config files between PR base and head — permission drift. |
+| **PolicyMesh** *(this repo)* | Audits MCP / Claude / Codex configs for contradictions across surfaces. |
+| **[CapabilityEcho](https://github.com/Conalh/CapabilityEcho)** | Network, subprocess, eval, lifecycle, and workflow-permission signals in code diffs. |
+| **[TaskBound](https://github.com/Conalh/TaskBound)** | Compares the stated task to the actual diff — scope creep. |
+| **[SessionTrail](https://github.com/Conalh/SessionTrail)** | Parses Cursor / Claude / Codex JSONL session transcripts for runtime behavior. |
+| **[GovVerdict](https://github.com/Conalh/GovVerdict)** | Merges JSON reports from the tools above into a single verdict. |
+| **[agent-gov-core](https://github.com/Conalh/agent-gov-core)** | Shared parsers, the canonical `Finding` schema, `mergeFindings`. |
+| **[agent-gov-demo](https://github.com/Conalh/agent-gov-demo)** | Sandbox repo with a rogue PR that exercises all five tools end-to-end. |
+
+**Demo PR exercising the full stack:** [agent-gov-demo#1](https://github.com/Conalh/agent-gov-demo/pull/1)
+
+---
+
+MIT. Bug reports and false-positive reports welcome via [Issues](https://github.com/Conalh/PolicyMesh/issues).
