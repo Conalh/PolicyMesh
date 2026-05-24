@@ -172,10 +172,12 @@ test('PolicyMesh workflow self-dogfoods the action', async () => {
 });
 
 test('issue templates collect detector and team validation feedback', async () => {
+  // README assertions were dropped when the README was rewritten in the
+  // canonical agent-gov suite style — pilot-doc cross-links live in
+  // docs/TEAM_PILOT.md and the issue template itself, not the README.
   const falsePositive = await readFile(join(packageRoot, '.github', 'ISSUE_TEMPLATE', 'false-positive.yml'), 'utf8');
   const missingSurface = await readFile(join(packageRoot, '.github', 'ISSUE_TEMPLATE', 'missing-surface.yml'), 'utf8');
   const teamValidation = await readFile(join(packageRoot, '.github', 'ISSUE_TEMPLATE', 'team-validation.yml'), 'utf8');
-  const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
   const teamPilot = await readFile(join(packageRoot, 'docs', 'TEAM_PILOT.md'), 'utf8');
 
   assert.match(falsePositive, /repository-count/);
@@ -195,37 +197,4 @@ test('issue templates collect detector and team validation feedback', async () =
   assert.match(teamPilot, /exception ownership/);
   assert.match(teamPilot, /cross-repo reports/);
   assert.match(teamPilot, /team-validation\.yml/);
-  assert.match(readme, /TEAM_PILOT\.md/);
-  assert.match(readme, /team-validation\.yml/);
-});
-
-test('README documents Action credibility and robustness signals', async () => {
-  const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
-
-  assert.match(readme, /VS Code and Windsurf MCP configs/);
-  assert.match(readme, /`\.codeium\/mcp_config\.json`/);
-  assert.match(readme, /`\.codeium\/windsurf\/mcp_config\.json`/);
-  assert.match(readme, /configured MCP surfaces with empty server maps/);
-  assert.match(readme, /MCP server enabled\/disabled drift across surfaces/);
-  assert.match(readme, /MCP server environment drift across surfaces/);
-  assert.match(readme, /MCP remote header drift across surfaces/);
-  assert.match(readme, /Codex MCP servers from `\.codex\/config\.toml`/);
-  assert.match(readme, /annotations on configured surfaces that are missing MCP servers/);
-  assert.match(readme, /subdirectory audits/);
-  assert.match(readme, /Codex network access enabled alongside other configured or unreadable agent surfaces/);
-  assert.match(readme, /Claude MCP grants for servers missing from MCP configs/);
-  assert.match(readme, /Malformed JSON and Codex TOML agent config files/);
-  assert.match(readme, /team feedback form/);
-});
-
-test('README separates original demo PR proof from richer fixture proof', async () => {
-  const readme = await readFile(join(packageRoot, 'README.md'), 'utf8');
-  const demoSection = readme.slice(readme.indexOf('## Demo'), readme.indexOf('## Local Use'));
-  const originalProof = demoSection.slice(0, demoSection.indexOf('The local fixture extends that proof with:'));
-
-  assert.match(demoSection, /Original demo PR:/);
-  assert.match(demoSection, /The original PR intentionally adds:/);
-  assert.match(demoSection, /The local fixture extends that proof with:/);
-  assert.doesNotMatch(originalProof, /Codex MCP table/);
-  assert.doesNotMatch(originalProof, /VS Code and Codeium\/Windsurf/);
 });
