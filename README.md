@@ -5,11 +5,17 @@
 [![Local-only](https://img.shields.io/badge/local--only-uploads%20nothing-2ea44f.svg)](#how-it-works)
 [![Release](https://img.shields.io/github/v/release/Conalh/PolicyMesh)](https://github.com/Conalh/PolicyMesh/releases)
 
-**Audits an AI-agent repo for contradictory configuration across MCP, Claude, Cursor, VS Code, Windsurf, Codex, and Aider — so one surface can't quietly override the rules another surface enforces.**
+**Detects contradictory AI-agent policy before stale repo rules make agents behave differently from run to run.**
+
+PolicyMesh scans MCP, Claude, Cursor, VS Code, Windsurf, Codex, Aider, and repo instruction files for policy drift across the checked-out repository.
 
 ## The problem
 
-Agent configuration is scattered. `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `.claude/settings.json`, `.codex/config.toml` and friends each describe what the agent is allowed to do, and they routinely disagree — same MCP server with different launch commands, broad Claude allow rules with a narrow deny that doesn't cover them, Codex network access enabled next to a workspace-write sandbox. Reviewers see one file at a time in a PR and miss the cross-surface contradiction. PolicyMesh reads every surface in the checked-out repo and reports where they don't line up.
+Agent rules now live across `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `.claude/settings.json`, `.codex/config.toml`, `AGENTS.md`, `CLAUDE.md`, Cursor rules, Copilot instructions, and more. Those files drift. One surface says agents may use a broad MCP server, another pins a narrower command. One config enables network access, another policy says the repo is locked down. One instruction file invites broad edits, another tries to fence off sensitive paths.
+
+Most drift is not malicious. It is a teammate editing one agent file weeks after another file already defined a different rule. Nothing throws an error. Reviewers see one file at a time in a PR. The next agent session just receives conflicting policy and silently chooses which rule to follow.
+
+PolicyMesh reads every agent-policy surface in the checked-out repo and reports where they do not line up, so contradiction drift becomes reviewable before it turns into nondeterministic agent behavior.
 
 ## Quickstart
 
@@ -148,7 +154,14 @@ Effective capability union:
 
 ## Detection coverage
 
-PolicyMesh v0.5 detects MCP command mismatches, missing-server gaps, enabled-state drift, env / header drift (without echoing secret values), unpinned `@latest` packages, hardcoded API credentials in MCP launch lines, MCP servers launched via elevation utilities (`sudo`, `pkexec`, `runas`…), broken local script paths, Claude broad-allow vs narrow-deny contradictions, Claude broad allows without a `PreToolUse` hook, Claude MCP grants for servers that aren't configured, Codex network-access + trusted-project + risky-MCP combinations, Codex sandbox gaps relative to Claude denies, Aider `dangerously-allow-non-git`, and risky imperatives in `AGENTS.md` / `CLAUDE.md` / `.cursor/rules/*.md` / `.github/copilot-instructions.md` (e.g. "ignore deny rules", "edit any file", "auto-commit"). VS Code and Cursor configs are parsed as JSONC (comments and trailing commas accepted).
+PolicyMesh v0.5 detects:
+
+- **Instruction drift:** risky imperatives in `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*.md`, and `.github/copilot-instructions.md` such as "ignore deny rules", "edit any file", or "auto-commit".
+- **MCP drift:** command mismatches, missing-server gaps, enabled-state drift, env / header drift without echoing secret values, unpinned `@latest` packages, and hardcoded API credentials in MCP launch lines.
+- **Permission drift:** Claude broad-allow vs narrow-deny contradictions, Claude broad allows without a `PreToolUse` hook, Claude MCP grants for servers that are not configured, Codex network-access + trusted-project + risky-MCP combinations, Codex sandbox gaps relative to Claude denies, and Aider `dangerously-allow-non-git`.
+- **Operational hazards:** MCP servers launched via elevation utilities (`sudo`, `pkexec`, `runas`…), broken local script paths, and config parser differences that normally hide in review noise.
+
+VS Code and Cursor configs are parsed as JSONC, so comments and trailing commas are accepted.
 
 ## Part of the agent-gov suite
 
@@ -157,7 +170,7 @@ Local-only OSS tools that review AI-agent PRs and coding sessions for config dri
 | Repo | What it catches |
 | --- | --- |
 | **[ScopeTrail](https://github.com/Conalh/ScopeTrail)** | Diffs agent config files between PR base and head — permission drift. |
-| **PolicyMesh** *(this repo)* | Audits MCP / Claude / Codex configs for contradictions across surfaces. |
+| **PolicyMesh** *(this repo)* | Finds contradictory agent instructions and config drift that make behavior non-reproducible. |
 | **[CapabilityEcho](https://github.com/Conalh/CapabilityEcho)** | Network, subprocess, eval, lifecycle, and workflow-permission signals in code diffs. |
 | **[TaskBound](https://github.com/Conalh/TaskBound)** | Compares the stated task to the actual diff — scope creep. |
 | **[SessionTrail](https://github.com/Conalh/SessionTrail)** | Parses Cursor / Claude / Codex JSONL session transcripts for runtime behavior. |
