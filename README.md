@@ -5,17 +5,46 @@
 [![Local-only](https://img.shields.io/badge/local--only-uploads%20nothing-2ea44f.svg)](#how-it-works)
 [![Release](https://img.shields.io/github/v/release/Conalh/PolicyMesh)](https://github.com/Conalh/PolicyMesh/releases)
 
-**Detects contradictory AI-agent policy before stale repo rules make agents behave differently from run to run.**
+**An agent-policy drift detector for reproducible AI-assisted development.** PolicyMesh finds contradictory instructions and configuration before stale repo rules make agents behave differently from run to run.
 
-PolicyMesh scans MCP, Claude, Cursor, VS Code, Windsurf, Codex, Aider, and repo instruction files for policy drift across the checked-out repository.
+Agent policy now lives across `CLAUDE.md`, `AGENTS.md`, Cursor rules, Copilot instructions, MCP configs, Codex config, VS Code settings, Windsurf, Aider, and repo docs. PolicyMesh reads that whole surface in the checked-out repository, compares the rules that different tools see, and turns contradiction drift into a reviewable report.
 
-## The problem
+```mermaid
+flowchart LR
+    Instructions["Instruction files<br/>CLAUDE.md · AGENTS.md · Cursor rules<br/>Copilot instructions"] --> Mesh
+    Configs["Agent configs<br/>MCP · Codex · VS Code<br/>Windsurf · Aider"] --> Mesh
+    PR["Pull request diff<br/>base vs head"] --> Mesh
+    Mesh[("PolicyMesh<br/>contradiction + drift audit")] --> Report["Review output<br/>PR annotations · Markdown<br/>JSON · SARIF"]
+    Report --> Decision["Reviewable policy decisions"]
 
-Agent rules now live across `.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `.claude/settings.json`, `.codex/config.toml`, `AGENTS.md`, `CLAUDE.md`, Cursor rules, Copilot instructions, and more. Those files drift. One surface says agents may use a broad MCP server, another pins a narrower command. One config enables network access, another policy says the repo is locked down. One instruction file invites broad edits, another tries to fence off sensitive paths.
+    classDef input fill:#1e293b,stroke:#334155,color:#e2e8f0
+    classDef engine fill:#0f172a,stroke:#1e293b,color:#e2e8f0,stroke-width:2px
+    classDef output fill:#0c4a6e,stroke:#0369a1,color:#e0f2fe
+    class Instructions,Configs,PR input
+    class Mesh engine
+    class Report,Decision output
+```
 
-Most drift is not malicious. It is a teammate editing one agent file weeks after another file already defined a different rule. Nothing throws an error. Reviewers see one file at a time in a PR. The next agent session just receives conflicting policy and silently chooses which rule to follow.
+Ships as a local-only TypeScript CLI and GitHub Action. One audit pass can produce terminal text, Markdown step summaries, PR annotations, JSON for [GovVerdict](https://github.com/Conalh/GovVerdict), or SARIF for SAST consumers.
 
-PolicyMesh reads every agent-policy surface in the checked-out repo and reports where they do not line up, so contradiction drift becomes reviewable before it turns into nondeterministic agent behavior.
+**See also:** [agent-gov-core](https://github.com/Conalh/agent-gov-core) for the shared report schema · [agent-gov-demo](https://github.com/Conalh/agent-gov-demo) for an end-to-end sample PR · [ScopeTrail](https://github.com/Conalh/ScopeTrail) for PR-level permission drift.
+
+## Why this exists
+
+AI-agent behavior is now controlled by a pile of repo-local policy files. They are edited by different people, at different times, for different tools. A contradiction does not fail CI. It just changes what the agent believes it is allowed to do.
+
+Most drift is not malicious. It is a teammate editing one agent file weeks after another file already defined a different rule. Reviewers see one file at a time in a PR. The next agent session just receives conflicting policy and silently chooses which rule to follow.
+
+PolicyMesh exists to make those contradictions visible before they turn into nondeterministic agent behavior.
+
+## What it catches
+
+| Drift class | Example |
+| --- | --- |
+| **Instruction drift** | `CLAUDE.md` fences off sensitive paths while Cursor rules say agents may edit any file. |
+| **MCP drift** | The same MCP server is pinned in one config, `@latest` in another, and disabled somewhere else. |
+| **Permission drift** | Claude denies a sensitive read while Codex is trusted with network access and a broader sandbox. |
+| **Operational hazards** | A config launches an MCP server through `sudo`, points at a broken local script, or hides a risky imperative in review noise. |
 
 ## Quickstart
 
@@ -83,7 +112,7 @@ Effective capability union:
 [HIGH]   github: Codex project trusted while MCP servers are unpinned and inconsistent.
 ```
 
-`--format json` emits the canonical [agent-gov-core](https://github.com/Conalh/agent-gov-core) `Report` envelope — the same shape every tool in the suite emits, so [GovVerdict](https://github.com/Conalh/GovVerdict) can merge them:
+`--format json` emits the canonical [agent-gov-core](https://github.com/Conalh/agent-gov-core) `Report` envelope — the same shape every tool in the suite emits, so GovVerdict can merge them:
 
 ```json
 {
@@ -112,16 +141,21 @@ Effective capability union:
 
 `--format sarif` is also supported for the GitHub Security tab and other SAST consumers.
 
-<!-- TODO: add screenshot or asciinema GIF of real output here -->
-
 ## How it works
 
 - Runs against the **checked-out repo** — no upload, no hosted scanner, no telemetry. The GitHub Action writes a Markdown report to the step summary and emits PR-visible annotations; pass `github-token` to additionally post a sticky PR comment that updates in place.
 - One audit pass renders five output formats: `text` for terminals, `markdown` for step summaries and PR comments, `json` for piping to GovVerdict, `github` for `::warning` annotations on the exact conflicting line, `sarif` for the GitHub Security tab.
-- Detectors group by canonical identity (e.g. MCP command normalization ignores neutral flag reordering / `-y` vs `--yes` / `.cmd` vs `.exe`) and fire only when two or more surfaces actually disagree.
-- **Diff mode** (`diff: true`) audits the PR base in a temporary worktree, audits HEAD, and gates only on **new or worsened** findings — so a PR doesn't fail on pre-existing conflicts. Findings resolved by the PR are surfaced separately as green-check signal.
+- Detectors group by canonical identity (for example, MCP command normalization ignores neutral flag reordering / `-y` vs `--yes` / `.cmd` vs `.exe`) and fire only when two or more surfaces actually disagree.
+- **Diff mode** (`diff: true`) audits the PR base in a temporary worktree, audits HEAD, and gates only on **new or worsened** findings — so a PR does not fail on pre-existing conflicts. Findings resolved by the PR are surfaced separately as green-check signal.
 - **`fix` / `fix pin`** can auto-align MCP enabled-state or `command` / `args` drift to a canonical surface you nominate. Always dry-run first; `--write` does line-targeted edits that preserve comments and indentation.
-- **Baselines.** `.policymesh-exceptions.json` suppresses known-and-documented findings (optionally locked to a content signature so the suppression breaks if the violation later changes). `.policymesh-baseline.json` encodes the positive state the team requires and fires HIGH on drift.
+- **Baselines.** `.policymesh-exceptions.json` suppresses known-and-documented findings, optionally locked to a content signature so the suppression breaks if the violation later changes. `.policymesh-baseline.json` encodes the positive state the team requires and fires HIGH on drift.
+
+## Design choices worth flagging
+
+- **Cross-surface by default.** A single policy file is rarely the full truth; the useful signal is where two tools expose incompatible rules to the same agent workflow.
+- **Adoptable in messy repos.** Diff mode gates on new or worsened findings, which lets teams start advisory and tighten later without fixing all historical drift first.
+- **One report model.** CLI text, Markdown, GitHub annotations, JSON, and SARIF all render from the same report object, so the machine-readable and human-readable surfaces stay aligned.
+- **Narrow fixes.** The `fix` commands are dry-run-first and line-targeted because policy edits should remain reviewable instead of becoming a silent rewrite of repo governance.
 
 ## Options
 
