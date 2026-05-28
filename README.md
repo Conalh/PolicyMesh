@@ -197,6 +197,23 @@ PolicyMesh v0.5 detects:
 
 VS Code and Cursor configs are parsed as JSONC, so comments and trailing commas are accepted.
 
+## How well it catches it
+
+PolicyMesh ships a labeled precision/recall benchmark over **31 fixture repos** (24 with planted drift, 7 clean) spanning **24 detector kinds**. Ground truth is fixed by fixture design; the harness scores the audit engine against it. Reproduce with `npm run build && node benchmark/run-benchmark.mjs`.
+
+| Metric | Result |
+| --- | --- |
+| Detection (any finding) — recall | **100%** (24/24 rogue repos flagged) |
+| Detection — false-positive rate | **0%** (0/7 clean repos flagged) |
+| Detection — precision | **100%** |
+| Correct primary finding kind | **24/24** rogue repos |
+| All expected finding kinds | **24/24** rogue repos |
+| Exact consolidated rating | **21/21** repos where the label pins one |
+
+The 7 clean repos include four engineered **false-positive traps** — neutral `npx -y` vs `npx`, multi-line Codex TOML `args`, Aider `dangerously-allow-non-git: false`, and benign "Always/Never" prose — plus a baseline-satisfied repo and an active exception. None produce a finding.
+
+**Severity is calibrated, not maximized.** At a strict `fail-on: high` gate, recall is 54% — by design: env / header / enabled-state drift and missing servers are medium-or-low because they are reproducibility hazards, not exploits. The critical band is reserved for hardcoded secrets. Full confusion matrix at every gate, per-category and per-case breakdowns: [benchmark/RESULTS.md](benchmark/RESULTS.md). Methodology and labels: [benchmark/labels.json](benchmark/labels.json).
+
 ## Part of the agent-gov suite
 
 Local-only OSS tools that review AI-agent PRs and coding sessions for config drift, policy mismatches, and scope creep. Each tool covers an orthogonal failure mode; they share a canonical `Finding` schema and can be merged into a single verdict.
