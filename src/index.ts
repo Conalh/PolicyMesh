@@ -3,6 +3,7 @@
 import { stat } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isValidGitRef } from 'agent-gov-core';
 import { auditRepo } from './audit.js';
 import { auditRecursive } from './recursive.js';
 import { fromCanonicalReport, renderReport } from './report.js';
@@ -421,6 +422,17 @@ async function runDiffRefs(
   // --head-ref accepting "HEAD" only and validates that explicitly.
   if (parsed.headRef !== 'HEAD') {
     process.stderr.write(`--head-ref currently supports "HEAD" only. To diff two refs, audit each separately and use --base-report / --head-report.\n`);
+    return 2;
+  }
+
+  // String-level argument-injection guard, shared across the suite via
+  // agent-gov-core. spawnSync (no shell) blocks shell metacharacters, but
+  // git re-parses a positional ref against its own option table — so a
+  // `-`-leading --base-ref (`--upload-pack=...`) is a flag-injection
+  // vector and a `:` would re-anchor an object selector. Reject those
+  // (and control chars) before the value reaches git.
+  if (!isValidGitRef(parsed.baseRef)) {
+    process.stderr.write(`Invalid --base-ref "${parsed.baseRef}". Refs cannot start with "-", contain ":", or include control characters.\n`);
     return 2;
   }
 

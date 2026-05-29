@@ -916,6 +916,26 @@ test('CLI diff --base-ref rejects --head-ref other than HEAD in v1', async () =>
   );
 });
 
+test('CLI diff --base-ref rejects refs git would re-parse as flags or object selectors', async () => {
+  // `:` re-anchors a `ref:path` object selector and a leading `-` is a
+  // flag-injection vector; the shared core guard rejects both before git runs.
+  for (const badRef of ['HEAD:secret', '-fakeflag']) {
+    await assert.rejects(
+      execFileAsync(
+        process.execPath,
+        ['dist/index.js', 'diff', '--base-ref', badRef, '--repo', packageRoot],
+        { cwd: packageRoot }
+      ),
+      (error) => {
+        assert.equal(error.code, 2);
+        assert.match(error.stderr, /Invalid --base-ref/);
+        return true;
+      },
+      `expected --base-ref "${badRef}" to be rejected by the git-ref guard`
+    );
+  }
+});
+
 test('CLI render reproduces audit output from saved JSON without re-running detectors', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
   const jsonPath = join(await mkdtemp(join(tmpdir(), 'policymesh-render-')), 'report.json');

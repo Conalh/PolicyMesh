@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Under v1.0, minor versions may carry breaking changes.
 
+## [0.5.2] — 2026-05-28
+
+### Security
+- **Added the git-ref argument-injection guard `diff --base-ref` was missing.** Ref mode now rejects a `--base-ref` value that git would re-parse as a CLI flag (`-`-leading, e.g. `--upload-pack=...`) or as a `ref:path` object selector (containing `:`), plus control characters, before the value reaches the `git rev-parse --verify` subprocess. Previously only `rev-parse --verify` stood between an untrusted ref and git. The guard is the shared `isValidGitRef` from agent-gov-core 1.3.0; an injection-vector ref now exits `2` with a clear message. (`--head-ref` is locked to `HEAD` in v1, so only `--base-ref` carried the gap.)
+
+### Internal
+- Bumped `agent-gov-core` dependency `^1.2.1` → `^1.3.0`.
+
 ## [0.5.1] — 2026-05-28
 
 ### Fixed
