@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "runner": {
+      "command": "node",
+      "args": ["/opt/policymesh/runner.js"]
+    }
+  }
+}

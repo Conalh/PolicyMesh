@@ -370,6 +370,13 @@ function shortDescriptionForKind(kind) {
         'policy_mesh.codex_trusted_with_risky_mcp': 'Codex project trusted while MCP is unpinned or inconsistent.',
         'policy_mesh.codex_claude_posture_gap': 'Codex sandbox posture inconsistent with Claude deny rules.',
         'policy_mesh.aider_dangerous_allow_non_git': 'Aider bypasses the git-tracked audit trail.',
+        'policy_mesh.instructions_skip_confirmation': 'Instruction file directs the agent to act without asking for confirmation.',
+        'policy_mesh.instructions_override_safety': 'Instruction file directs the agent to ignore or bypass safety/deny rules.',
+        'policy_mesh.instructions_broad_write': 'Instruction file grants broad read/write access to any file or path.',
+        'policy_mesh.instructions_auto_version_control': 'Instruction file directs the agent to commit, merge, or push automatically.',
+        'policy_mesh.baseline_rating_drift': 'Audit rating exceeds the team baseline expected rating.',
+        'policy_mesh.baseline_version_drift': 'MCP server version drifts from the team baseline pin.',
+        'policy_mesh.baseline_parse_error': 'Baseline file could not be parsed.',
         'policy_mesh.config_parse_error': 'Agent config file could not be parsed.',
         'policy_mesh.exceptions_parse_error': 'Exceptions baseline file could not be parsed.'
     };

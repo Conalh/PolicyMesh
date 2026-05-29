@@ -9,6 +9,10 @@ const claudeModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'parsers', 'claude.js')).href
 );
 const { isBroadAllow } = claudeModule;
+const mcpModule = await import(
+  pathToFileURL(join(testDir, '..', 'dist', 'parsers', 'mcp.js')).href
+);
+const { isUnpinnedCommand } = mcpModule;
 const { matchSecret } = await import('agent-gov-core');
 const exceptionsModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'exceptions.js')).href
@@ -88,6 +92,22 @@ test('isBroadAllow: filesystem grants on broad roots remain broad', () => {
 test('isBroadAllow: bare Task spawn is broad; scoped Task is not', () => {
   assert.equal(isBroadAllow('Task'), true);
   assert.equal(isBroadAllow('Task(explore-codebase)'), false);
+});
+
+test('isUnpinnedCommand: a GitHub URL pinned to a commit SHA is pinned; a branch URL is not', () => {
+  const sha = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+  // Reproducible: the 40-char commit SHA makes the install immutable.
+  assert.equal(
+    isUnpinnedCommand({ command: 'npx', args: ['-y', `https://github.com/owner/repo/archive/${sha}.tar.gz`] }),
+    false
+  );
+  // Mutable: a branch reference can move under you.
+  assert.equal(
+    isUnpinnedCommand({ command: 'npx', args: ['-y', 'https://github.com/owner/repo/archive/main.tar.gz'] }),
+    true
+  );
+  // @latest stays unpinned regardless of host.
+  assert.equal(isUnpinnedCommand({ command: 'npx', args: ['-y', 'some-pkg@latest'] }), true);
 });
 
 test('matchSecret: detects common provider prefixes', () => {

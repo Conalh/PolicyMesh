@@ -6,11 +6,11 @@ under `test/fixtures/`. Ground truth (intent, expected finding kinds, expected
 rating) is fixed by fixture design — the runner scores the audit engine against
 it. Benign cases include deliberate false-positive traps a naive detector would flag.
 
-- Cases: **31** (24 rogue, 7 benign) across **24** detector kinds
+- Cases: **33** (24 rogue, 9 benign) across **24** detector kinds
 - Detection (any finding): recall **100.0%**, false-positive rate **0.0%**, precision **100.0%**
 - At a `fail-on: high` CI gate: recall **54.2%**, false-positive rate **0.0%**, precision **100.0%**
 - Correct primary finding kind identified on **24/24** rogue cases; all expected kinds on **24/24**
-- Exact rating match where the label pins one: **21/21**
+- Exact rating match where the label pins one: **23/23**
 
 ## Confusion matrix by CI gate threshold
 
@@ -18,10 +18,10 @@ A repo is predicted "drift" when its overall rating meets the threshold. `low` =
 
 | Gate (`fail-on`) | TP | FP | FN | TN | Precision | Recall | FP rate | F1 | Accuracy |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| low | 24 | 0 | 0 | 7 | 100.0% | 100.0% | 0.0% | 100.0% | 100.0% |
-| medium | 22 | 0 | 2 | 7 | 100.0% | 91.7% | 0.0% | 95.7% | 93.5% |
-| high | 13 | 0 | 11 | 7 | 100.0% | 54.2% | 0.0% | 70.3% | 64.5% |
-| critical | 1 | 0 | 23 | 7 | 100.0% | 4.2% | 0.0% | 8.0% | 25.8% |
+| low | 24 | 0 | 0 | 9 | 100.0% | 100.0% | 0.0% | 100.0% | 100.0% |
+| medium | 22 | 0 | 2 | 9 | 100.0% | 91.7% | 0.0% | 95.7% | 93.9% |
+| high | 13 | 0 | 11 | 9 | 100.0% | 54.2% | 0.0% | 70.3% | 66.7% |
+| critical | 1 | 0 | 23 | 9 | 100.0% | 4.2% | 0.0% | 8.0% | 30.3% |
 
 ## Detector-kind identification (rogue cases)
 
@@ -31,7 +31,7 @@ A repo is predicted "drift" when its overall rating meets the threshold. `low` =
 
 ## Rating agreement
 
-Of the **21** cases whose label pins an exact consolidated rating, the audit matched **21**.
+Of the **23** cases whose label pins an exact consolidated rating, the audit matched **23**.
 
 ## Results by category
 
@@ -40,7 +40,7 @@ Of the **21** cases whose label pins an exact consolidated rating, the audit mat
 | baseline | 2 | 2/2 | — |
 | clean | 3 | — | 3/3 |
 | exceptions | 2 | 2/2 | — |
-| fp-guard | 3 | — | 3/3 |
+| fp-guard | 5 | — | 5/5 |
 | instructions | 1 | 1/1 | — |
 | mcp-drift | 10 | 10/10 | — |
 | multi-class | 1 | 1/1 | — |
@@ -64,6 +64,8 @@ None. Every rogue case produced all of its expected finding kinds, no benign cas
 | aider-safe | benign | fp-guard | none | 0 | — | — | yes |
 | codex-multiline-args | benign | fp-guard | none | 0 | — | — | — |
 | mcp-command-neutral-flag-equivalence | benign | fp-guard | none | 0 | — | — | — |
+| mcp-github-sha-pinned | benign | fp-guard | none | 0 | — | — | yes |
+| mcp-absolute-script-path | benign | fp-guard | none | 0 | — | — | yes |
 | exceptions-active | benign | suppression | none | 0 | — | — | yes |
 | conflicted | rogue | multi-class | high | 7 | yes | yes | yes |
 | claude-missing-mcp-server | rogue | mcp-drift | medium | 1 | yes | yes | yes |
