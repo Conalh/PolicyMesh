@@ -66,6 +66,7 @@ async function readMcpServers(root, config) {
         servers.push({
             name,
             command,
+            rawCommand: raw.command,
             canonicalIdentity: normalizeMcpCommand({
                 command: raw.command,
                 args: raw.args,

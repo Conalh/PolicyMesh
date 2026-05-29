@@ -831,6 +831,52 @@ test('CLI without --recursive on a monorepo audits only the root', async () => {
   assert.equal(report.data.surfaceCount, 0);
 });
 
+test('CLI --recursive discovers instruction-only sub-projects independently', async () => {
+  // Each package's ONLY agent config is an instruction file (no MCP /
+  // Codex / Claude config). Before instruction markers were added to
+  // recursive discovery, neither package was found as its own project.
+  const repo = join(testDir, 'fixtures', 'monorepo-instructions');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--recursive', '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  // alpha's AGENTS.md fires a skip_confirmation finding; beta's CLAUDE.md
+  // fires an override_safety finding. Both must be present, each scoped to
+  // its own package path.
+  const alpha = report.findings.find(
+    (finding) => finding.kind === 'policy_mesh.instructions_skip_confirmation'
+  );
+  const beta = report.findings.find(
+    (finding) => finding.kind === 'policy_mesh.instructions_override_safety'
+  );
+  assert.ok(alpha, 'expected alpha AGENTS.md to be audited');
+  assert.ok(beta, 'expected beta CLAUDE.md to be audited');
+  assert.match(alpha.location.file, /packages[\/\\]alpha[\/\\]AGENTS\.md/);
+  assert.match(beta.location.file, /packages[\/\\]beta[\/\\]CLAUDE\.md/);
+
+  // Both instruction-only packages are counted as configured surfaces.
+  assert.equal(report.data.surfaceCount, 2);
+});
+
+test('CLI without --recursive on an instruction-only monorepo finds nothing at the root', async () => {
+  const repo = join(testDir, 'fixtures', 'monorepo-instructions');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  // Instruction files live only in sub-packages, not at the root.
+  assert.equal(report.findings.length, 0);
+  assert.equal(report.data.surfaceCount, 0);
+});
+
 async function copyFixture(srcDir, destDir) {
   await mkdir(destDir, { recursive: true });
   const { readdir, stat: statFn } = await import('node:fs/promises');
@@ -1204,6 +1250,72 @@ test('CLI fix pin dry-run does not modify files', async () => {
   assert.equal(after, before);
 });
 
+test('CLI fix pin preserves a canonical inline command string instead of dropping its args', async () => {
+  // Regression: the canonical surface authors the launch as a single
+  // inline command string with no separate args array. The old plan did
+  // canonicalServer.command.split(' ')[0], which copied only "npx" and
+  // silently dropped "-y @modelcontextprotocol/server-github@1.2.3".
+  const src = join(testDir, 'fixtures', 'fix-pin-inline-command');
+  const repo = await mkdtemp(join(tmpdir(), 'policymesh-fix-pin-inline-'));
+  try {
+    await copyFixture(src, repo);
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'fix', 'pin', '--repo', repo, '--canonical', 'root_mcp', '--write'],
+      { cwd: packageRoot }
+    );
+    assert.match(stdout, /Applied 1 edit/);
+
+    const updated = JSON.parse(await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8'));
+    // The full canonical command survives — package and flags intact.
+    assert.equal(updated.mcpServers.github.command, 'npx -y @modelcontextprotocol/server-github@1.2.3');
+    // No stray args array was introduced.
+    assert.equal(updated.mcpServers.github.args, undefined);
+
+    const { stdout: auditOut } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const report = JSON.parse(auditOut);
+    assert.equal(
+      report.findings.some((f) => f.kind === 'policy_mesh.mcp_command_mismatch'),
+      false
+    );
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('CLI fix pin skips, not corrupts, when canonical folds args but the target keeps a separate args array', async () => {
+  // Canonical = inline command string; target = bare command + args
+  // array. Rewriting the command while leaving the target args would
+  // produce "npx -y pkg@1.2.3 -y pkg@2.0.0". We refuse instead.
+  const src = join(testDir, 'fixtures', 'fix-pin-shape-mismatch');
+  const repo = await mkdtemp(join(tmpdir(), 'policymesh-fix-pin-mismatch-'));
+  try {
+    await copyFixture(src, repo);
+    const cursorPath = join(repo, '.cursor', 'mcp.json');
+    const before = await readFile(cursorPath, 'utf8');
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'fix', 'pin', '--repo', repo, '--canonical', 'root_mcp', '--write'],
+      { cwd: packageRoot }
+    );
+
+    assert.match(stdout, /Applied 0 edit\(s\), skipped 1/);
+    assert.match(stdout, /align manually to avoid a corrupt launch/);
+
+    // The target file is byte-for-byte untouched.
+    const after = await readFile(cursorPath, 'utf8');
+    assert.equal(after, before);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('CLI fix dry-run lists planned enabled-state edits without modifying files', async () => {
   const repo = join(testDir, 'fixtures', 'fix-enabled-mismatch');
   const before = await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8');
@@ -1396,6 +1508,46 @@ test('CLI does not flag clean documentation that uses "Always" / "Never" benignl
   assert.deepEqual(instructionFindings, [], 'expected no instruction findings on clean AGENTS.md');
   // The surface itself is still counted as configured because the file exists.
   assert.equal(report.data.surfaceCount, 1);
+});
+
+test('CLI scans legacy .cursorrules for risky instructions', async () => {
+  const repo = join(testDir, 'fixtures', 'instructions-cursorrules');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const finding = report.findings.find((f) => f.kind === 'policy_mesh.instructions_skip_confirmation');
+  assert.ok(finding, 'expected a skip-confirmation finding from .cursorrules');
+  assert.match(finding.location.file, /\.cursorrules/);
+});
+
+test('CLI instruction scanner skips risky text inside Markdown code fences', async () => {
+  const repo = join(testDir, 'fixtures', 'instructions-fenced');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const kinds = new Set(report.findings.map((finding) => finding.kind));
+  // "Ignore all safety checks ..." lives inside a ```text fence — a
+  // documentation example, not a live instruction — so it must NOT fire.
+  assert.equal(
+    kinds.has('policy_mesh.instructions_override_safety'),
+    false,
+    'fenced documentation example must not be flagged'
+  );
+  // A real directive outside the fence still fires.
+  assert.ok(
+    kinds.has('policy_mesh.instructions_auto_version_control'),
+    'a real instruction outside the fence should still be flagged'
+  );
 });
 
 test('CLI emits Markdown with matrix and union summary', async () => {

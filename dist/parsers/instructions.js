@@ -3,7 +3,10 @@ import { configPath } from '../discovery.js';
 const ROOT_FILES = [
     'AGENTS.md',
     'CLAUDE.md',
-    '.github/copilot-instructions.md'
+    '.github/copilot-instructions.md',
+    // Legacy single-file Cursor rules (predates .cursor/rules/*.md|.mdc).
+    // Plenty of repos still carry one, so it must be scanned too.
+    '.cursorrules'
 ];
 const CURSOR_RULES_DIR = '.cursor/rules';
 /**
@@ -85,9 +88,21 @@ async function scanFile(root, relativePath, matches) {
         throw error;
     }
     const lines = text.split(/\r?\n/);
+    let inFence = false;
     for (let index = 0; index < lines.length; index += 1) {
         const line = lines[index];
         const stripped = line.trim();
+        // Track Markdown fenced code blocks (``` or ~~~). Risky-looking text
+        // inside a documentation example — e.g. a "do NOT write this" block
+        // showing `ignore safety checks` — must not be reported as a live
+        // instruction. The fence delimiter line itself is skipped too.
+        if (/^(```|~~~)/.test(stripped)) {
+            inFence = !inFence;
+            continue;
+        }
+        if (inFence) {
+            continue;
+        }
         if (!stripped || stripped.startsWith('<!--')) {
             continue;
         }

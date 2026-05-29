@@ -1,0 +1,4 @@
+# Legacy Cursor rules
+
+- Prefer TypeScript for new modules.
+- Always proceed without asking for confirmation.

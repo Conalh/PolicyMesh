@@ -8,7 +8,7 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const claudeModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'parsers', 'claude.js')).href
 );
-const { isBroadAllow } = claudeModule;
+const { isBroadAllow, isSensitiveDeny } = claudeModule;
 const mcpModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'parsers', 'mcp.js')).href
 );
@@ -108,6 +108,44 @@ test('isUnpinnedCommand: a GitHub URL pinned to a commit SHA is pinned; a branch
   );
   // @latest stays unpinned regardless of host.
   assert.equal(isUnpinnedCommand({ command: 'npx', args: ['-y', 'some-pkg@latest'] }), true);
+});
+
+test('isBroadAllow: bare Bash/Read/Write/Edit are broad; scoped forms are not', () => {
+  // A bare tool name in Claude Code allow rules matches every use of the
+  // tool, so it grants unrestricted shell / filesystem access.
+  assert.equal(isBroadAllow('Bash'), true);
+  assert.equal(isBroadAllow('Read'), true);
+  assert.equal(isBroadAllow('Write'), true);
+  assert.equal(isBroadAllow('Edit'), true);
+  // Scoped to a specific command / file, they are narrow.
+  assert.equal(isBroadAllow('Bash(npm run build)'), false);
+  assert.equal(isBroadAllow('Edit(src/specific-file.ts)'), false);
+  // Wildcards in the scope are still broad.
+  assert.equal(isBroadAllow('Bash(npm *)'), true);
+});
+
+test('isSensitiveDeny: covers keys, tokens, and credential stores', () => {
+  const sensitive = [
+    'Read(.env)',
+    'Read(.env.production)',
+    'Read(~/.ssh/id_rsa)',
+    'Read(**/id_ed25519)',
+    'Read(.npmrc)',
+    'Read(.pypirc)',
+    'Read(.netrc)',
+    'Read(kubeconfig)',
+    'Read(**/*.pem)',
+    'Read(**/*.key)',
+    'Read(**/*.pfx)',
+    'Read(.aws/credentials)',
+    'Read(secrets.json)',
+    'Read(**/*token*)'
+  ];
+  for (const permission of sensitive) {
+    assert.equal(isSensitiveDeny(permission), true, permission);
+  }
+  // A plain source path is not sensitive.
+  assert.equal(isSensitiveDeny('Read(src/index.ts)'), false);
 });
 
 test('matchSecret: detects common provider prefixes', () => {
@@ -358,6 +396,41 @@ test('diffReports: omits resolvedFindings field when nothing was resolved', () =
 
   const delta = diffReports(base, head);
   assert.equal(delta.resolvedFindings, undefined);
+});
+
+test('diffReports: same kind/subject/file and severity but different message is surfaced as [CHANGED]', () => {
+  // A medium finding mutated into a *different* medium at the same
+  // place. The (kind, subject, file) key matches, so without a content
+  // check this would be dropped as pre-existing.
+  const base = makeReport([makeFinding({ message: 'github launches npx server-github.' })]);
+  const head = makeReport([makeFinding({ message: 'github launches npx server-evil.' })]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.findingCount, 1);
+  assert.equal(delta.findings[0].severity, 'medium');
+  assert.match(delta.findings[0].message, /^\[CHANGED\]/);
+  assert.match(delta.findings[0].message, /server-evil/);
+});
+
+test('diffReports: same severity with a changed signature is surfaced as [CHANGED]', () => {
+  // When reports carry signatures (the audit path always signs), the
+  // content identity comes from the signature rather than the message.
+  const base = makeReport([makeFinding({ signature: 'aaaaaaaaaaaaaaaa' })]);
+  const head = makeReport([makeFinding({ signature: 'bbbbbbbbbbbbbbbb' })]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.findingCount, 1);
+  assert.match(delta.findings[0].message, /^\[CHANGED\]/);
+});
+
+test('diffReports: same severity and identical signature stays out of the delta', () => {
+  // Identical signatures mean the violation is unchanged even if some
+  // unrelated report field differs — it is pre-existing, not a regression.
+  const base = makeReport([makeFinding({ signature: 'cafef00dcafef00d', message: 'phrasing A' })]);
+  const head = makeReport([makeFinding({ signature: 'cafef00dcafef00d', message: 'phrasing B' })]);
+
+  const delta = diffReports(base, head);
+  assert.equal(delta.findingCount, 0);
 });
 
 test('makeMeshContext: indexes servers by name across surfaces in a single pass', () => {
