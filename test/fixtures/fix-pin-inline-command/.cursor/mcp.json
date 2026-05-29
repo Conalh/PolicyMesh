@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx -y @modelcontextprotocol/server-github@2.0.0"
+    }
+  }
+}

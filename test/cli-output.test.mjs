@@ -1204,6 +1204,72 @@ test('CLI fix pin dry-run does not modify files', async () => {
   assert.equal(after, before);
 });
 
+test('CLI fix pin preserves a canonical inline command string instead of dropping its args', async () => {
+  // Regression: the canonical surface authors the launch as a single
+  // inline command string with no separate args array. The old plan did
+  // canonicalServer.command.split(' ')[0], which copied only "npx" and
+  // silently dropped "-y @modelcontextprotocol/server-github@1.2.3".
+  const src = join(testDir, 'fixtures', 'fix-pin-inline-command');
+  const repo = await mkdtemp(join(tmpdir(), 'policymesh-fix-pin-inline-'));
+  try {
+    await copyFixture(src, repo);
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'fix', 'pin', '--repo', repo, '--canonical', 'root_mcp', '--write'],
+      { cwd: packageRoot }
+    );
+    assert.match(stdout, /Applied 1 edit/);
+
+    const updated = JSON.parse(await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8'));
+    // The full canonical command survives — package and flags intact.
+    assert.equal(updated.mcpServers.github.command, 'npx -y @modelcontextprotocol/server-github@1.2.3');
+    // No stray args array was introduced.
+    assert.equal(updated.mcpServers.github.args, undefined);
+
+    const { stdout: auditOut } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+      { cwd: packageRoot }
+    );
+    const report = JSON.parse(auditOut);
+    assert.equal(
+      report.findings.some((f) => f.kind === 'policy_mesh.mcp_command_mismatch'),
+      false
+    );
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('CLI fix pin skips, not corrupts, when canonical folds args but the target keeps a separate args array', async () => {
+  // Canonical = inline command string; target = bare command + args
+  // array. Rewriting the command while leaving the target args would
+  // produce "npx -y pkg@1.2.3 -y pkg@2.0.0". We refuse instead.
+  const src = join(testDir, 'fixtures', 'fix-pin-shape-mismatch');
+  const repo = await mkdtemp(join(tmpdir(), 'policymesh-fix-pin-mismatch-'));
+  try {
+    await copyFixture(src, repo);
+    const cursorPath = join(repo, '.cursor', 'mcp.json');
+    const before = await readFile(cursorPath, 'utf8');
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'fix', 'pin', '--repo', repo, '--canonical', 'root_mcp', '--write'],
+      { cwd: packageRoot }
+    );
+
+    assert.match(stdout, /Applied 0 edit\(s\), skipped 1/);
+    assert.match(stdout, /align manually to avoid a corrupt launch/);
+
+    // The target file is byte-for-byte untouched.
+    const after = await readFile(cursorPath, 'utf8');
+    assert.equal(after, before);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('CLI fix dry-run lists planned enabled-state edits without modifying files', async () => {
   const repo = join(testDir, 'fixtures', 'fix-enabled-mismatch');
   const before = await readFile(join(repo, '.cursor', 'mcp.json'), 'utf8');
