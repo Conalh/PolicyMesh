@@ -153,6 +153,28 @@ test('published Action runs the bundled CLI without installing or rebuilding its
   assert.ok(trackedDistFiles.includes('dist/audit.js'));
 });
 
+test('action.yml reads the PR event with Node and guards the GitHub CLI', async () => {
+  const action = await readFile(join(packageRoot, 'action.yml'), 'utf8');
+
+  // No dependency on the standalone jq binary for parsing the event payload
+  // — minimal / self-hosted runners may not have it.
+  assert.doesNotMatch(action, /jq -r '\.pull_request/);
+  // PR base SHA + number are read with Node straight from the event JSON.
+  assert.match(action, /process\.env\.GITHUB_EVENT_PATH/);
+  assert.match(action, /pull_request\?\.base\?\.sha/);
+  // gh is guarded so a runner without it degrades to a notice, not a failure.
+  assert.match(action, /command -v gh/);
+});
+
+test('package.json and lockfile declare a supported Node engine', async () => {
+  const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+  const packageLock = JSON.parse(await readFile(join(packageRoot, 'package-lock.json'), 'utf8'));
+
+  assert.deepEqual(packageJson.engines, { node: '>=20' });
+  // Keep the lockfile's root entry in sync so `npm ci` does not warn on drift.
+  assert.deepEqual(packageLock.packages[''].engines, { node: '>=20' });
+});
+
 test('CI workflow builds and tests PolicyMesh', async () => {
   const workflow = await readFile(join(packageRoot, '.github', 'workflows', 'ci.yml'), 'utf8');
 
