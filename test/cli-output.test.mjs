@@ -831,6 +831,52 @@ test('CLI without --recursive on a monorepo audits only the root', async () => {
   assert.equal(report.data.surfaceCount, 0);
 });
 
+test('CLI --recursive discovers instruction-only sub-projects independently', async () => {
+  // Each package's ONLY agent config is an instruction file (no MCP /
+  // Codex / Claude config). Before instruction markers were added to
+  // recursive discovery, neither package was found as its own project.
+  const repo = join(testDir, 'fixtures', 'monorepo-instructions');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--recursive', '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  // alpha's AGENTS.md fires a skip_confirmation finding; beta's CLAUDE.md
+  // fires an override_safety finding. Both must be present, each scoped to
+  // its own package path.
+  const alpha = report.findings.find(
+    (finding) => finding.kind === 'policy_mesh.instructions_skip_confirmation'
+  );
+  const beta = report.findings.find(
+    (finding) => finding.kind === 'policy_mesh.instructions_override_safety'
+  );
+  assert.ok(alpha, 'expected alpha AGENTS.md to be audited');
+  assert.ok(beta, 'expected beta CLAUDE.md to be audited');
+  assert.match(alpha.location.file, /packages[\/\\]alpha[\/\\]AGENTS\.md/);
+  assert.match(beta.location.file, /packages[\/\\]beta[\/\\]CLAUDE\.md/);
+
+  // Both instruction-only packages are counted as configured surfaces.
+  assert.equal(report.data.surfaceCount, 2);
+});
+
+test('CLI without --recursive on an instruction-only monorepo finds nothing at the root', async () => {
+  const repo = join(testDir, 'fixtures', 'monorepo-instructions');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  // Instruction files live only in sub-packages, not at the root.
+  assert.equal(report.findings.length, 0);
+  assert.equal(report.data.surfaceCount, 0);
+});
+
 async function copyFixture(srcDir, destDir) {
   await mkdir(destDir, { recursive: true });
   const { readdir, stat: statFn } = await import('node:fs/promises');

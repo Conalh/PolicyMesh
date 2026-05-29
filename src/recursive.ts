@@ -42,7 +42,16 @@ const PROJECT_MARKERS = [
   '.codeium/windsurf/mcp_config.json',
   '.codex/config.toml',
   '.claude/settings.json',
-  '.aider.conf.yml'
+  '.aider.conf.yml',
+  // Instruction-only surfaces. The instruction parser audits these, so a
+  // monorepo package whose *only* agent config is an instruction file
+  // (e.g. packages/foo/AGENTS.md with no MCP/Codex/Claude config) must
+  // still be discovered as its own project. `.cursor/rules` is a
+  // directory; stat() resolves directories as well as files.
+  'AGENTS.md',
+  'CLAUDE.md',
+  '.github/copilot-instructions.md',
+  '.cursor/rules'
 ];
 
 export async function findProjectRoots(root: string): Promise<string[]> {
