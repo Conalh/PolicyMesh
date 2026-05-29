@@ -1,6 +1,6 @@
 import { isBroadAllow, isSensitiveDeny } from '../parsers/claude.js';
 import { codexSandboxRank } from '../parsers/codex.js';
-import { matchSecret } from './secrets.js';
+import { matchSecret } from 'agent-gov-core';
 import { detectPrivilegedCommands } from './privileged.js';
 import { makeMeshContext } from './context.js';
 import type { MeshContext } from './context.js';

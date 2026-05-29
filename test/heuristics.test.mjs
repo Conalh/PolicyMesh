@@ -9,10 +9,7 @@ const claudeModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'parsers', 'claude.js')).href
 );
 const { isBroadAllow } = claudeModule;
-const secretsModule = await import(
-  pathToFileURL(join(testDir, '..', 'dist', 'mesh', 'secrets.js')).href
-);
-const { matchSecret } = secretsModule;
+const { matchSecret } = await import('agent-gov-core');
 const exceptionsModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'exceptions.js')).href
 );
