@@ -190,7 +190,7 @@ test('issue templates collect detector and team validation feedback', async () =
   assert.match(teamValidation, /Reporting or export need/);
   assert.match(teamValidation, /Team workflow/);
   assert.match(teamValidation, /Team workflow gap/);
-  assert.match(teamPilot, /Conalh\/PolicyMesh@v0\.4\.0/);
+  assert.match(teamPilot, /Conalh\/PolicyMesh@v0\.5\.2/);
   assert.match(teamPilot, /Run across at least two repositories/);
   assert.match(teamPilot, /Finding counts by severity/);
   assert.match(teamPilot, /shared baselines/);
