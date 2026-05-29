@@ -170,7 +170,9 @@ Effective capability union:
 | `policymesh fix pin --canonical <surface> [--write]` | Align MCP `command` / `args` to a canonical surface. |
 | `policymesh render --input <json> --format <fmt>` | Re-render a saved audit in another format. |
 
-`<surface>` is one of: `root_mcp`, `cursor_mcp`, `vscode_mcp`, `codeium_mcp`, `windsurf_mcp`, `claude`, `codex`, `aider`, `instructions`.
+PolicyMesh **audits** nine surfaces: `root_mcp`, `cursor_mcp`, `vscode_mcp`, `codeium_mcp`, `windsurf_mcp`, `claude`, `codex`, `aider`, and `instructions`.
+
+For `fix --canonical <surface>` and `fix pin --canonical <surface>`, `<surface>` must currently be one of the five JSON MCP surfaces: `root_mcp`, `cursor_mcp`, `vscode_mcp`, `codeium_mcp`, or `windsurf_mcp`. The line-targeted JSON editor preserves comments and indentation on exactly these formats; aligning the Codex TOML, Claude, Aider, or instruction surfaces is not yet supported, and `fix` rejects them with an error rather than risk a lossy rewrite.
 
 ### GitHub Action inputs
 
