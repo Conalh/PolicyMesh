@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: Conalh/PolicyMesh@v0.4.0
+      - uses: Conalh/PolicyMesh@v0.5.2
         with:
           fail-on: none
 ```
