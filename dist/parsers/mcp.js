@@ -114,8 +114,16 @@ export function isUnpinnedCommand(server) {
     if (normalized.includes('@latest')) {
         return true;
     }
-    if (/https:\/\/github\.com\/[^ ]+/.test(normalized)) {
-        return true;
+    const githubUrl = normalized.match(/https:\/\/github\.com\/[^ ]+/);
+    if (githubUrl) {
+        // A GitHub URL is unpinned UNLESS it references an immutable 40-char
+        // commit SHA (e.g. .../archive/<sha>.tar.gz, .../tree/<sha>, or
+        // git+https://...#<sha>). Branch / tag / HEAD references are mutable
+        // and stay flagged. This avoids over-flagging every GitHub URL as
+        // unpinned when a SHA already makes the install reproducible.
+        if (!/[0-9a-f]{40}/.test(githubUrl[0])) {
+            return true;
+        }
     }
     if (/\bcurl\b.+\|\s*(bash|sh)\b/.test(normalized)) {
         return true;

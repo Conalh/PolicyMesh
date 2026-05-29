@@ -1670,6 +1670,36 @@ test('CLI render passes through SARIF format from a saved audit JSON', async () 
   }
 });
 
+test('CLI SARIF rules carry human descriptions for instruction and baseline kinds', async () => {
+  async function rulesFor(fixture) {
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['dist/index.js', 'audit', '--repo', join(testDir, 'fixtures', fixture), '--format', 'sarif'],
+      { cwd: packageRoot }
+    );
+    return JSON.parse(stdout).runs[0].tool.driver.rules;
+  }
+
+  // Instruction kinds previously fell back to the raw kind string in SARIF.
+  const instructionRules = await rulesFor('instructions-risky');
+  for (const kind of [
+    'policy_mesh.instructions_skip_confirmation',
+    'policy_mesh.instructions_override_safety',
+    'policy_mesh.instructions_broad_write',
+    'policy_mesh.instructions_auto_version_control'
+  ]) {
+    const rule = instructionRules.find((r) => r.id === kind);
+    assert.ok(rule, `expected a SARIF rule for ${kind}`);
+    assert.notEqual(rule.shortDescription.text, kind, `${kind} should have a real description, not the bare kind`);
+  }
+
+  // Baseline drift kinds too.
+  const baselineRules = await rulesFor('baseline-version-drift');
+  const drift = baselineRules.find((r) => r.id === 'policy_mesh.baseline_version_drift');
+  assert.ok(drift);
+  assert.notEqual(drift.shortDescription.text, 'policy_mesh.baseline_version_drift');
+});
+
 test('CLI emits severity-aware GitHub annotations', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
