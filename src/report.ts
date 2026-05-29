@@ -428,6 +428,8 @@ function renderGithubAnnotations(report: MeshReport, pathPrefix?: string): strin
 
   return report.findings
     .flatMap((finding) => {
+      const level =
+        finding.severity === 'critical' || finding.severity === 'high' ? 'error' : 'warning';
       const title = `PolicyMesh ${finding.severity} finding`;
       const message = `${finding.message} Surfaces: ${formatSurfaceList(finding.surfaces)}. Recommendation: ${finding.recommendation}`;
       return annotationLocations(finding).map((location) => {
@@ -436,7 +438,7 @@ function renderGithubAnnotations(report: MeshReport, pathPrefix?: string): strin
           properties.push(`line=${location.line}`);
         }
         properties.push(`title=${escapeProperty(title)}`);
-        return `::warning ${properties.join(',')}::${escapeMessage(message)}`;
+        return `::${level} ${properties.join(',')}::${escapeMessage(message)}`;
       });
     })
     .join('\n') + '\n';

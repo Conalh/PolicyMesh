@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Under v1.0, minor versions may carry breaking changes.
 
+## [0.5.1] — 2026-05-28
+
+### Fixed
+- **Secret detection now uses agent-gov-core's `matchSecret`** instead of a stale vendored copy, so hardcoded-credential findings stay in sync with the suite's shared provider-prefix and entropy rules rather than drifting against an out-of-date local table.
+
+### Changed
+- **GitHub annotations are now severity-aware.** `high` and `critical` findings emit `::error` annotations; `medium` and `low` stay `::warning`. This matches the annotation contract in agent-gov-core (and GovVerdict), so a critical policy finding no longer shows up as a yellow warning in the PR diff. Exit-code gating is unchanged — that is still controlled by `--fail-on`.
+
+### Internal
+- Bumped `agent-gov-core` dependency `^1.0.0` → `^1.2.1`.
+
 ## [0.5.0] — 2026-05-22
 
 **BREAKING** — JSON output now emits the canonical agent-gov-core `Report` envelope so the cross-tool meta-reviewer (GovVerdict) can ingest one shape across the whole suite.

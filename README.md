@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0     # required for diff mode
-      - uses: Conalh/PolicyMesh@v0.5.0
+      - uses: Conalh/PolicyMesh@v0.5.1
         with:
           fail-on: high
           diff: true         # gate only on findings this PR introduces or worsens

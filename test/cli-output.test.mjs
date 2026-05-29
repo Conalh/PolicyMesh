@@ -1110,7 +1110,7 @@ test('CLI diff renders github annotations only for delta findings', async () => 
       { cwd: packageRoot }
     );
 
-    assert.match(stdout, /^::warning file=/m);
+    assert.match(stdout, /^::error file=/m);
     assert.match(stdout, /PolicyMesh critical finding/);
   } finally {
     await rm(tmp, { recursive: true, force: true });
@@ -1498,7 +1498,7 @@ test('CLI render passes through SARIF format from a saved audit JSON', async () 
   }
 });
 
-test('CLI emits GitHub warning annotations', async () => {
+test('CLI emits severity-aware GitHub annotations', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
   const { stdout } = await execFileAsync(
@@ -1507,7 +1507,10 @@ test('CLI emits GitHub warning annotations', async () => {
     { cwd: packageRoot }
   );
 
+  // medium/low stay ::warning; high/critical escalate to ::error to match
+  // agent-gov-core's annotation contract.
   assert.match(stdout, /^::warning file=/m);
+  assert.match(stdout, /^::error file=/m);
   assert.match(stdout, /different launch commands/);
   assert.match(stdout, /title=PolicyMesh high finding/);
   assert.match(stdout, /Surfaces: Root MCP, Cursor MCP, VS Code MCP, Windsurf MCP/);
@@ -1516,7 +1519,7 @@ test('CLI emits GitHub warning annotations', async () => {
     .split('\n')
     .filter((line) => line.includes('different launch commands'));
   assert.deepEqual(
-    mismatchAnnotations.map((line) => /^::warning file=([^,]+)/.exec(line)?.[1]).sort(),
+    mismatchAnnotations.map((line) => /^::error file=([^,]+)/.exec(line)?.[1]).sort(),
     [
       'test/fixtures/conflicted/.codeium/windsurf/mcp_config.json',
       'test/fixtures/conflicted/.codex/config.toml',
