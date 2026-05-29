@@ -157,11 +157,22 @@ export async function planPinFixes(root: string, canonical: SurfaceId): Promise<
       if (server.canonicalIdentity === canonicalServer.canonicalIdentity) {
         continue;
       }
+      // Reproduce the canonical surface's *raw* shape, not the joined
+      // display command. Splitting `command` on spaces dropped every
+      // argument whenever the canonical config used a single inline
+      // command string ("npx -y pkg@1.2.3"), silently rewriting the
+      // target down to just "npx". `rawCommand` is the verbatim
+      // `command` value; `args` is the verbatim args array (if any).
+      if (canonicalServer.rawCommand === undefined && canonicalServer.args === undefined) {
+        // Remote (url-only) server or otherwise nothing launchable to
+        // copy — fix pin only aligns command/args.
+        continue;
+      }
       fixes.push({
         file: server.file,
         surface: server.surfaceId,
         server: server.name,
-        canonicalCommand: canonicalServer.command.split(' ')[0],
+        canonicalCommand: canonicalServer.rawCommand,
         canonicalArgs: canonicalServer.args,
         description: `Align "${server.name}" command/args to ${canonical} in ${server.file}`
       });
@@ -300,7 +311,7 @@ class JsonLineEditor {
     canonicalCommand: string | undefined,
     canonicalArgs: string[] | undefined
   ): { ok: true } | { ok: false; reason: string } {
-    if (!canonicalCommand && !canonicalArgs) {
+    if (canonicalCommand === undefined && canonicalArgs === undefined) {
       return { ok: false, reason: 'canonical surface has neither command nor args to copy' };
     }
 
@@ -343,17 +354,30 @@ class JsonLineEditor {
       }
     }
 
+    // Shape-mismatch guard: the canonical surface folds its arguments
+    // into the command string (no separate args array) but the target
+    // keeps a separate args array. Rewriting the command while leaving
+    // the target's args untouched would yield a duplicated, corrupt
+    // launch line, so refuse rather than "helpfully" break the config.
+    if (canonicalArgs === undefined && argsLine !== undefined) {
+      return {
+        ok: false,
+        reason: 'canonical folds args into the command string but the target keeps a separate "args" array; align manually to avoid a corrupt launch'
+      };
+    }
+
+    // Validate every edit is applicable BEFORE mutating anything, so a
+    // partially-applicable fix never leaves the file half-rewritten.
+    const commandRegex = /("command"\s*:\s*)"[^"]*"/;
+    const argsRegex = /("args"\s*:\s*)\[[^\]]*\]/;
     if (canonicalCommand !== undefined) {
       if (commandLine === undefined) {
         return { ok: false, reason: 'target server has no "command" field; insertion not supported in v1' };
       }
-      const commandRegex = /("command"\s*:\s*)"[^"]*"/;
       if (!commandRegex.test(this.lines[commandLine])) {
         return { ok: false, reason: 'could not locate command value token on its line' };
       }
-      this.lines[commandLine] = this.lines[commandLine].replace(commandRegex, `$1"${escapeJsonString(canonicalCommand)}"`);
     }
-
     if (canonicalArgs !== undefined) {
       if (argsLine === undefined) {
         return { ok: false, reason: 'target server has no "args" field; insertion not supported in v1' };
@@ -361,10 +385,16 @@ class JsonLineEditor {
       if (argsClosingLine !== argsLine) {
         return { ok: false, reason: 'multi-line "args" array; not supported in v1' };
       }
-      const argsRegex = /("args"\s*:\s*)\[[^\]]*\]/;
       if (!argsRegex.test(this.lines[argsLine])) {
         return { ok: false, reason: 'could not locate args array token on its line' };
       }
+    }
+
+    // All checks passed — apply the edits.
+    if (canonicalCommand !== undefined && commandLine !== undefined) {
+      this.lines[commandLine] = this.lines[commandLine].replace(commandRegex, `$1"${escapeJsonString(canonicalCommand)}"`);
+    }
+    if (canonicalArgs !== undefined && argsLine !== undefined) {
       const renderedArgs = canonicalArgs.map((arg) => `"${escapeJsonString(arg)}"`).join(', ');
       this.lines[argsLine] = this.lines[argsLine].replace(argsRegex, `$1[${renderedArgs}]`);
     }

@@ -45,6 +45,16 @@ export interface McpServer {
   /** Human-readable launch string. Used in messages/matrix rows only. */
   command: string;
   /**
+   * The `command` value exactly as authored in the config, before `args`
+   * / `url` were joined into the display `command`. Preserved so `fix pin`
+   * can faithfully reproduce the canonical raw shape — a single inline
+   * command string (`"npx -y pkg@1.2.3"`) versus a bare command with a
+   * separate `args` array — instead of guessing by splitting the joined
+   * display string (which dropped every argument). Undefined for remote
+   * (url-only) servers that carry no command.
+   */
+  rawCommand?: string;
+  /**
    * Canonical identity of the launch command from agent-gov-core's
    * normalizeMcpCommand, computed *without* env. Two servers with the same
    * canonicalIdentity launch the same workload, even if their raw command
