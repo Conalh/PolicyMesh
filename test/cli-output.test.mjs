@@ -1510,6 +1510,46 @@ test('CLI does not flag clean documentation that uses "Always" / "Never" benignl
   assert.equal(report.data.surfaceCount, 1);
 });
 
+test('CLI scans legacy .cursorrules for risky instructions', async () => {
+  const repo = join(testDir, 'fixtures', 'instructions-cursorrules');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const finding = report.findings.find((f) => f.kind === 'policy_mesh.instructions_skip_confirmation');
+  assert.ok(finding, 'expected a skip-confirmation finding from .cursorrules');
+  assert.match(finding.location.file, /\.cursorrules/);
+});
+
+test('CLI instruction scanner skips risky text inside Markdown code fences', async () => {
+  const repo = join(testDir, 'fixtures', 'instructions-fenced');
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ['dist/index.js', 'audit', '--repo', repo, '--format', 'json'],
+    { cwd: packageRoot }
+  );
+  const report = JSON.parse(stdout);
+
+  const kinds = new Set(report.findings.map((finding) => finding.kind));
+  // "Ignore all safety checks ..." lives inside a ```text fence — a
+  // documentation example, not a live instruction — so it must NOT fire.
+  assert.equal(
+    kinds.has('policy_mesh.instructions_override_safety'),
+    false,
+    'fenced documentation example must not be flagged'
+  );
+  // A real directive outside the fence still fires.
+  assert.ok(
+    kinds.has('policy_mesh.instructions_auto_version_control'),
+    'a real instruction outside the fence should still be flagged'
+  );
+});
+
 test('CLI emits Markdown with matrix and union summary', async () => {
   const repo = join(testDir, 'fixtures', 'conflicted');
 
