@@ -38,15 +38,32 @@ export async function parseClaudePolicy(root) {
 // `mcp__github__get_issue` are narrow — the previous heuristic flagged
 // both as broad, which produced false positives on every PR that scoped
 // its grants properly. Bare tokens and explicit wildcards are still broad.
+//
+// In Claude Code a permission rule is `Tool` or `Tool(specifier)`; a BARE
+// tool name matches every use of that tool. So a bare `Bash`, `Read`,
+// `Write`, or `Edit` grants unrestricted shell / filesystem access and is
+// just as broad as a bare `WebFetch`.
+//
+// The filesystem verbs need different scope handling than the others: a
+// wildcard in a Read/Write/Edit scope is usually a normal subtree glob
+// (`Read(src/**)`) and is NOT broad. Those are broad only when bare or
+// rooted at a broad path (`Read(/)`, `Write(C:\)`, `Read(~/**)`,
+// `Read(**)`). Bash/WebFetch/WebSearch/Task, by contrast, ARE broad when
+// their scope contains a wildcard (`Bash(npm *)` runs any npm command).
+const BARE_FS_VERBS = ['read', 'write', 'edit'];
+const WILDCARD_BROAD_VERBS = ['webfetch', 'websearch', 'task', 'bash'];
 export function isBroadAllow(permission) {
     const normalized = permission.toLowerCase();
-    if (/\bbash\([^)]*\*[^)]*\)/.test(normalized)) {
+    // Bare filesystem verb (no scope) — unrestricted file access.
+    if (BARE_FS_VERBS.includes(normalized.trim())) {
         return true;
     }
+    // Filesystem verb rooted at a broad path.
     if (/\b(read|write|edit)\((~|[a-z]:\\|\/|\*\*)/.test(normalized)) {
         return true;
     }
-    if (isBroadVerbGrant(normalized, ['webfetch', 'websearch', 'task'])) {
+    // Bare or wildcard-scoped shell / web / task grant.
+    if (isBroadVerbGrant(normalized, WILDCARD_BROAD_VERBS)) {
         return true;
     }
     if (isBroadMcpGrant(normalized)) {
@@ -97,12 +114,35 @@ function isBroadMcpGrant(normalized) {
     }
     return !tool || tool.includes('*');
 }
+// Substrings that mark a deny rule as protecting something sensitive
+// (secrets, keys, tokens, credential stores). The posture-gap and
+// deny/allow-overlap detectors depend on recognising these, so the list
+// errs toward inclusion: a deny rule is the protective side, and counting
+// one more path as "sensitive" is far cheaper than missing a real secret.
+const SENSITIVE_DENY_TERMS = [
+    '.env', // also matches .env.local / .env.production
+    'secret',
+    'credential', // also matches .aws/credentials
+    'token',
+    '.pem',
+    '.key',
+    '.p12',
+    '.pfx',
+    '.ssh',
+    'id_rsa',
+    'id_ed25519',
+    'private key',
+    'private_key',
+    '.npmrc',
+    '.pypirc',
+    '.netrc',
+    'kubeconfig',
+    '.gcp',
+    '.azure'
+];
 export function isSensitiveDeny(permission) {
     const normalized = permission.toLowerCase();
-    return normalized.includes('.env')
-        || normalized.includes('secret')
-        || normalized.includes('credential')
-        || normalized.includes('.pem');
+    return SENSITIVE_DENY_TERMS.some((term) => normalized.includes(term));
 }
 function readStringArray(value) {
     return Array.isArray(value) ? value.filter((entry) => typeof entry === 'string') : [];

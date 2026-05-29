@@ -8,7 +8,7 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const claudeModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'parsers', 'claude.js')).href
 );
-const { isBroadAllow } = claudeModule;
+const { isBroadAllow, isSensitiveDeny } = claudeModule;
 const { matchSecret } = await import('agent-gov-core');
 const exceptionsModule = await import(
   pathToFileURL(join(testDir, '..', 'dist', 'exceptions.js')).href
@@ -88,6 +88,44 @@ test('isBroadAllow: filesystem grants on broad roots remain broad', () => {
 test('isBroadAllow: bare Task spawn is broad; scoped Task is not', () => {
   assert.equal(isBroadAllow('Task'), true);
   assert.equal(isBroadAllow('Task(explore-codebase)'), false);
+});
+
+test('isBroadAllow: bare Bash/Read/Write/Edit are broad; scoped forms are not', () => {
+  // A bare tool name in Claude Code allow rules matches every use of the
+  // tool, so it grants unrestricted shell / filesystem access.
+  assert.equal(isBroadAllow('Bash'), true);
+  assert.equal(isBroadAllow('Read'), true);
+  assert.equal(isBroadAllow('Write'), true);
+  assert.equal(isBroadAllow('Edit'), true);
+  // Scoped to a specific command / file, they are narrow.
+  assert.equal(isBroadAllow('Bash(npm run build)'), false);
+  assert.equal(isBroadAllow('Edit(src/specific-file.ts)'), false);
+  // Wildcards in the scope are still broad.
+  assert.equal(isBroadAllow('Bash(npm *)'), true);
+});
+
+test('isSensitiveDeny: covers keys, tokens, and credential stores', () => {
+  const sensitive = [
+    'Read(.env)',
+    'Read(.env.production)',
+    'Read(~/.ssh/id_rsa)',
+    'Read(**/id_ed25519)',
+    'Read(.npmrc)',
+    'Read(.pypirc)',
+    'Read(.netrc)',
+    'Read(kubeconfig)',
+    'Read(**/*.pem)',
+    'Read(**/*.key)',
+    'Read(**/*.pfx)',
+    'Read(.aws/credentials)',
+    'Read(secrets.json)',
+    'Read(**/*token*)'
+  ];
+  for (const permission of sensitive) {
+    assert.equal(isSensitiveDeny(permission), true, permission);
+  }
+  // A plain source path is not sensitive.
+  assert.equal(isSensitiveDeny('Read(src/index.ts)'), false);
 });
 
 test('matchSecret: detects common provider prefixes', () => {
